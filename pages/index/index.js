@@ -1,55 +1,195 @@
-// pages/index/index.js
+const app = getApp();
+
 Page({
   data: {
-    questions: []
+    questions: [],
+    allQuestions: [],
+    currentSort: 'time',
+    searchKeyword: '',
+    showLoginModal: false,
+    userInfo: {
+      avatarUrl: '',
+      nickName: ''
+    },
+    // 详情页相关
+    showDetail: false,
+    currentQuestion: {},
+    replyContent: ''
   },
 
   onLoad: function (options) {
-    this.loadQuestions();
+    // 检查登录状态
+    if (!app.globalData.isLoggedIn) {
+      this.setData({ showLoginModal: true });
+    } else {
+      this.loadQuestions();
+    }
   },
 
   onShow: function() {
-    // 每次显示页面时刷新数据（模拟）
-    this.loadQuestions();
+    if (app.globalData.isLoggedIn) {
+      this.loadQuestions();
+    }
   },
 
-  loadQuestions: function() {
-    // 模拟数据
-    const mockQuestions = [
-      {
-        id: 1,
-        content: "最近感觉压力很大，期末考试复习不完怎么办？感觉每天都很焦虑，睡不着觉。",
-        time: "2026-01-28 14:30",
-        reply: "同学你好，考前焦虑是很正常的现象。建议制定合理的复习计划，按部就班。如果失眠严重，可以来心理咨询室找老师聊聊。",
-        isPublic: true
-      },
-      {
-        id: 2,
-        content: "请问奖学金评定标准在哪里可以看到？",
-        time: "2026-01-29 09:15",
-        reply: null,
-        isPublic: true
-      },
-      {
-        id: 3,
-        content: "宿舍关系处理不好，室友总是半夜打游戏，沟通过也没用。",
-        time: "2026-01-29 11:20",
-        reply: "这确实很让人困扰。建议可以先找宿管阿姨协调，或者私信辅导员我们一起开个寝室会议。",
-        isPublic: true
-      }
-    ];
-    
+  // --- 登录逻辑 ---
+  onChooseAvatar(e) {
+    const { avatarUrl } = e.detail;
     this.setData({
-      questions: mockQuestions
+      'userInfo.avatarUrl': avatarUrl
     });
   },
 
+  onNicknameChange(e) {
+    this.setData({
+      'userInfo.nickName': e.detail.value
+    });
+  },
+
+  confirmLogin() {
+    const { avatarUrl, nickName } = this.data.userInfo;
+    if (!avatarUrl || !nickName) {
+      wx.showToast({ title: '请完善信息', icon: 'none' });
+      return;
+    }
+    
+    wx.showLoading({ title: '登录中...' });
+    app.login(this.data.userInfo).then(user => {
+      wx.hideLoading();
+      this.setData({ showLoginModal: false });
+      wx.showToast({ title: '欢迎回来', icon: 'success' });
+      this.loadQuestions();
+    }).catch(err => {
+      wx.hideLoading();
+      console.error(err);
+      // Mock for development if server fails
+      if (err.includes && err.includes('request:fail')) {
+         wx.showToast({ title: '服务器连接失败，使用模拟模式', icon: 'none' });
+         this.setData({ showLoginModal: false });
+         app.globalData.isLoggedIn = true;
+         this.loadQuestions(); // Load mock data logic if needed, but here we assume loadQuestions calls API
+      } else {
+        wx.showToast({ title: '登录失败', icon: 'none' });
+      }
+    });
+  },
+
+  loadQuestions: function() {
+    wx.request({
+      url: `${app.globalData.baseUrl}/questions`,
+      method: 'GET',
+      data: {
+        search: this.data.searchKeyword,
+        sort: this.data.currentSort
+      },
+      success: (res) => {
+        if (res.statusCode === 200) {
+          this.setData({ questions: res.data });
+        }
+      }
+    });
+  },
+
+  // ... 之前的排序和搜索逻辑 ...
+  changeSort: function(e) {
+    const type = e.currentTarget.dataset.type;
+    this.setData({ currentSort: type }, () => {
+        this.loadQuestions();
+    });
+  },
+
+  onSearchInput: function(e) {
+    this.setData({ searchKeyword: e.detail.value });
+  },
+
+  onSearch: function() {
+    this.loadQuestions();
+  },
+
+  // --- 详情页逻辑 ---
   goToDetail: function(e) {
     const id = e.currentTarget.dataset.id;
-    // 暂时没有详情页，直接提示
-    wx.showToast({
-      title: '查看详情: ' + id,
-      icon: 'none'
+    console.log('点击查看详情，ID:', id); // 调试日志
+    this.fetchQuestionDetail(id);
+  },
+
+  fetchQuestionDetail(id) {
+    wx.showLoading({ title: '加载中' });
+    wx.request({
+      url: `${app.globalData.baseUrl}/questions/${id}`,
+      method: 'GET',
+      success: (res) => {
+        wx.hideLoading();
+        if (res.statusCode === 200) {
+          this.setData({
+            currentQuestion: res.data,
+            showDetail: true
+          });
+        }
+      }
+    });
+  },
+
+  onDetailClose() {
+    this.setData({ showDetail: false });
+  },
+
+  onReplyInput(e) {
+    this.setData({ replyContent: e.detail.value });
+  },
+
+  submitReply() {
+    if (!this.data.replyContent.trim()) {
+      wx.showToast({ title: '请输入内容', icon: 'none' });
+      return;
+    }
+    
+    const qid = this.data.currentQuestion.id;
+    wx.showLoading({ title: '发送中' });
+    
+    wx.request({
+      url: `${app.globalData.baseUrl}/questions/${qid}/replies`,
+      method: 'POST',
+      header: {
+        'Authorization': wx.getStorageSync('token')
+      },
+      data: {
+        content: this.data.replyContent
+      },
+      success: (res) => {
+        wx.hideLoading();
+        if (res.statusCode === 200) {
+          wx.showToast({ title: '回复成功', icon: 'success' });
+          this.setData({ replyContent: '' });
+          // 刷新详情
+          this.fetchQuestionDetail(qid);
+        } else {
+            wx.showToast({ title: '回复失败', icon: 'none' });
+        }
+      }
+    });
+  },
+
+  onTapPost: function() {
+    console.log('onTapPost triggered');
+    if (!app.globalData.isLoggedIn) {
+      console.log('User not logged in, showing modal');
+      this.setData({ showLoginModal: true });
+      return;
+    }
+    console.log('Navigating to square post page');
+    wx.navigateTo({
+      url: '/pages/square_post/index',
+      success: () => {
+        console.log('Navigate success');
+      },
+      fail: (err) => {
+        console.error('Navigate failed:', err);
+        wx.showToast({
+          title: '无法跳转',
+          icon: 'none'
+        });
+      }
     });
   }
 })

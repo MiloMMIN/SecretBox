@@ -1,0 +1,31 @@
+<view class="container">
+  <view class="header">
+    <view class="title">广场提问</view>
+    <view class="subtitle">向大家分享你的困惑或想法</view>
+  </view>
+
+  <view class="form-card">
+    <textarea 
+      class="content-input" 
+      placeholder="请详细描述你的问题，真诚的提问通常会获得更多温暖的回复..." 
+      maxlength="500"
+      bindinput="onContentInput"
+      auto-focus
+    ></textarea>
+    <view class="word-count">{{contentLength}}/500</view>
+  </view>
+
+  <view class="options-card">
+    <view class="option-item">
+      <view class="option-label">
+        <text class="label-text">匿名发布</text>
+        <text class="option-desc">勾选后将隐藏你的头像和昵称</text>
+      </view>
+      <switch color="#66BB6A" checked="{{isAnonymous}}" bindchange="onAnonymousChange"/>
+    </view>
+  </view>
+
+  <button class="submit-btn" bindtap="submitPost" disabled="{{loading}}">
+    {{loading ? '发布中...' : '发布到广场'}}
+  </button>
+</view>

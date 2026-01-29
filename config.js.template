@@ -1,0 +1,9 @@
+// config.js.template
+const config = {
+  // 您的后端 API 地址
+  // 真机调试：请使用局域网 IP (例如 http://192.168.x.x:5000/api)
+  // 云服务器：请使用公网 IP (例如 http://123.45.67.89:5000/api)
+  baseUrl: "http://localhost:5000/api"
+};
+
+export default config;

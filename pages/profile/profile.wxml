@@ -1,24 +1,52 @@
 <!--pages/profile/profile.wxml-->
 <view class="container">
+  <!-- 用户信息卡片 -->
   <view class="user-card card">
-    <image class="user-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
+    <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
+      <image class="user-avatar" src="{{userInfo.avatarUrl || '/assets/icons/user.png'}}" mode="cover"></image>
+      <view class="edit-icon">✎</view>
+    </button>
     <view class="user-info">
-      <view class="user-name">{{userInfo.nickName}}</view>
+      <view class="name-row">
+        <input type="nickname" class="user-name-input" value="{{userInfo.nickName}}" placeholder="点击设置昵称" bind:change="onNicknameChange" bindblur="onNicknameBlur"/>
+        <view class="edit-hint">✎</view>
+      </view>
       <view class="user-role">{{userInfo.role === 'teacher' ? '辅导员' : '学生'}}</view>
     </view>
-    <button class="role-switch-btn" size="mini" bindtap="switchRole">切换角色(测试)</button>
   </view>
 
   <!-- 学生视图 -->
-  <block wx:if="{{userInfo.role === 'student'}}">
+  <block wx:if="{{userInfo.role === 'student' || !userInfo.role}}">
     <view class="menu-list card">
-      <view class="menu-item">
+      <!-- 我的提问 -->
+      <view class="menu-item" bindtap="toggleMyQuestions">
         <text>我的提问</text>
-        <text class="arrow">></text>
+        <text class="arrow {{showMyQuestions ? 'up' : ''}}">></text>
       </view>
-      <view class="menu-item">
+      <view class="sub-list" wx:if="{{showMyQuestions}}">
+        <block wx:if="{{myQuestions.length > 0}}">
+          <view class="sub-item" wx:for="{{myQuestions}}" wx:key="id" bindtap="goToDetail" data-id="{{item.id}}">
+            <view class="sub-content">{{item.content}}</view>
+            <view class="sub-time">{{item.time}}</view>
+            <view class="sub-status {{item.reply ? 'replied' : 'pending'}}">{{item.reply ? '已回复' : '待回复'}}</view>
+          </view>
+        </block>
+        <view class="empty-sub" wx:else>暂无提问记录</view>
+      </view>
+
+      <!-- 我的回复 -->
+      <view class="menu-item" bindtap="toggleMyReplies">
         <text>我的回复</text>
-        <text class="arrow">></text>
+        <text class="arrow {{showMyReplies ? 'up' : ''}}">></text>
+      </view>
+      <view class="sub-list" wx:if="{{showMyReplies}}">
+        <block wx:if="{{myReplies.length > 0}}">
+          <view class="sub-item" wx:for="{{myReplies}}" wx:key="id">
+            <view class="sub-content">回复：{{item.content}}</view>
+            <view class="sub-time">{{item.time}}</view>
+          </view>
+        </block>
+        <view class="empty-sub" wx:else>暂无回复记录</view>
       </view>
     </view>
   </block>

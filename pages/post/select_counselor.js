@@ -9,6 +9,13 @@ Page({
     this.setData({
       counselors: [
         {
+          id: 0,
+          name: "星空树洞",
+          avatar: "/assets/icons/star.png", // 假设会有个星星图标，或者用通用图
+          desc: "这里没有身份，只有倾听。把秘密告诉星空吧。",
+          isTreeHole: true
+        },
+        {
           id: 1,
           name: "张老师",
           avatar: "/assets/icons/user.png", // 暂用图标代替头像

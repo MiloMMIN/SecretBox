@@ -3,6 +3,7 @@
     "pages/index/index",
     "pages/post/select_counselor",
     "pages/post/create",
+    "pages/square_post/index",
     "pages/profile/profile"
   ],
   "window": {
@@ -13,26 +14,20 @@
   },
   "tabBar": {
     "color": "#999999",
-    "selectedColor": "#4CAF50",
+    "selectedColor": "#66BB6A",
     "backgroundColor": "#FFFFFF",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "广场",
-        "iconPath": "assets/icons/square.png",
-        "selectedIconPath": "assets/icons/square_active.png"
+        "text": "🏠 广场"
       },
       {
         "pagePath": "pages/post/select_counselor",
-        "text": "投递",
-        "iconPath": "assets/icons/add.png",
-        "selectedIconPath": "assets/icons/add_active.png"
+        "text": "📮 投递"
       },
       {
         "pagePath": "pages/profile/profile",
-        "text": "我的",
-        "iconPath": "assets/icons/user.png",
-        "selectedIconPath": "assets/icons/user_active.png"
+        "text": "👤 我的"
       }
     ]
   },

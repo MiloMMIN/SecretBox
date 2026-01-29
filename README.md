@@ -1,123 +1,100 @@
-# 智心树洞 (Wisdom Heart Tree Hole)
+# 智心树洞 (SecretBox)
 
-智心树洞是一个为学生与辅导员提供沟通渠道的微信小程序。本项目包含小程序前端代码及服务器部署指南。
+智心树洞是一个基于微信小程序的心理咨询与互动平台，旨在为学生提供一个安全、私密或公开的表达空间，并连接辅导员提供专业的心理支持。
 
-## 📁 项目结构
+## 📖 项目简介
+
+本项目包含微信小程序前端和 Python Flask 后端。主要功能包括：
+- **问题广场**：公开提问、浏览热门话题、互动讨论。
+- **树洞投递**：向指定辅导员进行私密咨询或投递到公开广场。
+- **个人中心**：管理个人信息、查看历史提问与回复、辅导员工作台。
+
+## 🛠️ 技术栈
+
+### 前端 (Mini Program)
+- **框架**: 微信小程序原生框架 (WXML, WXSS, JS, JSON)
+- **UI风格**: 自定义设计系统 (CSS Variables)，清新绿色主调
+- **特性**:
+  - 自定义组件与页面容器
+  - CSS3 动画与过渡
+  - 响应式布局
+  - 微信开放能力集成 (头像/昵称获取)
+
+### 后端 (Server)
+- **框架**: Python Flask
+- **数据库**: MySQL (SQLAlchemy ORM)
+- **异步任务**: Celery + Redis
+- **部署**: Docker & Docker Compose
+
+## 📂 目录结构
 
 ```
 SecretBox/
-├── app.json            # 小程序全局配置
-├── app.js              # 全局逻辑
-├── app.wxss            # 全局样式
-├── pages/              # 页面目录
-│   ├── index/          # 问题广场
-│   ├── post/           # 投递/树洞
-│   └── profile/        # 个人中心/教师端
-└── README.md           # 说明文档
+├── pages/                  # 小程序页面目录
+│   ├── index/              # 首页/广场页
+│   ├── post/               # 投递相关页面 (选导师/创建)
+│   ├── square_post/        # 广场专用投稿页
+│   └── profile/            # 个人中心页
+├── server/                 # 后端代码目录
+│   ├── app.py              # Flask 应用入口
+│   ├── Dockerfile          # 后端镜像构建
+│   ├── docker-compose.yml  # 容器编排
+│   └── ...
+├── app.js                  # 小程序全局逻辑
+├── app.json                # 小程序全局配置
+├── app.wxss                # 小程序全局样式
+└── project.config.json     # 开发者工具配置
 ```
 
-## 🚀 快速开始 (前端)
+## ✨ 核心功能
 
+### 1. 问题广场 (`pages/index`)
+- **浏览**: 查看最新的公开提问。
+- **排序**: 支持按最新、热度、讨论量排序。
+- **搜索**: 关键词搜索感兴趣的话题。
+- **互动**: 查看问题详情及辅导员回复。
+- **悬浮发布**: 快捷入口发布新问题到广场。
+
+### 2. 提问投递
+- **广场投稿** (`pages/square_post`): 
+  - 专门的广场提问界面。
+  - 支持匿名/实名切换。
+  - 字数统计与表单验证。
+- **定向咨询** (`pages/post/select_counselor`):
+  - 选择特定辅导员进行私密咨询 (功能开发中)。
+
+### 3. 个人中心 (`pages/profile`)
+- **用户管理**:
+  - 支持微信头像/昵称同步与自定义修改。
+  - 角色展示 (学生/辅导员)。
+- **学生视图**:
+  - 查看“我的提问”列表及状态。
+  - 查看“我的回复”历史。
+- **辅导员视图** (权限控制):
+  - 数据看板 (待回复数、今日留言)。
+  - 树洞信箱入口。
+  - 数据导出功能。
+
+## 🚀 快速开始
+
+### 前端运行
 1. 下载并安装 [微信开发者工具](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)。
-2. 选择 "导入项目"，目录选择本项目根目录 (`SecretBox`)。
-3. AppID 使用测试号或您申请的真实 AppID。
-4. 编译即可预览。
+2. 导入项目目录 `SecretBox`。
+3. 修改 `appid` (在 `project.config.json` 中) 为你自己的测试 AppID 或使用测试号。
+4. 编译预览。
 
----
+### 后端运行 (Docker)
+1. 进入 `server` 目录。
+2. 复制环境变量模板: `cp config.env.template config.env` 并配置数据库信息。
+3. 启动服务:
+   ```bash
+   docker-compose up -d --build
+   ```
 
-## 🖥️ 服务器端部署指南 (后端)
+## 📝 开发规范
+- **样式**: 使用 `var(--variable-name)` 调用 `app.wxss` 中定义的全局变量，保持视觉一致性。
+- **交互**: 重要的操作需提供 Loading 反馈或 Toast 提示。
+- **导航**: TabBar 页面使用 `wx.switchTab`，非 TabBar 页面使用 `wx.navigateTo`。
 
-要在您的服务器上运行完整功能（V1.0），您需要完成以下操作：
-
-### 1. 环境准备
-
-确保您的服务器安装了以下软件：
-*   **Docker** & **Docker Compose** (推荐，最简单的部署方式)
-*   或者手动安装: Python 3.9+, MySQL 8.0, Redis 6+
-
-### 2. 数据库配置
-
-您需要在 MySQL 中创建一个数据库 `treehole_db`。
-
-```sql
-CREATE DATABASE treehole_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 3. 后端服务搭建 (Docker 方式)
-
-在服务器创建一个目录 `treehole-server`，并创建 `docker-compose.yml` 文件：
-
-```yaml
-version: '3'
-services:
-  web:
-    image: python:3.9-slim
-    volumes:
-      - ./app:/app
-    working_dir: /app
-    command: gunicorn -w 4 -b 0.0.0.0:5000 app:app
-    ports:
-      - "5000:5000"
-    environment:
-      - DATABASE_URL=mysql+pymysql://root:password@db/treehole_db
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - db
-      - redis
-
-  worker:
-    image: python:3.9-slim
-    volumes:
-      - ./app:/app
-    working_dir: /app
-    command: celery -A tasks worker --loglevel=info
-    environment:
-      - DATABASE_URL=mysql+pymysql://root:password@db/treehole_db
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - db
-      - redis
-
-  db:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: treehole_db
-    volumes:
-      - db_data:/var/lib/mysql
-
-  redis:
-    image: redis:6-alpine
-
-volumes:
-  db_data:
-```
-
-### 4. 必需的后端代码逻辑
-
-您需要编写 Python Flask 代码来实现以下 API 接口：
-
-1.  **用户认证**: `POST /api/login` (接收 `code`, 调用微信 `jscode2session` 获取 `openid`)
-2.  **获取问题列表**: `GET /api/questions` (返回公开的问题)
-3.  **获取辅导员列表**: `GET /api/counselors`
-4.  **投递问题**: `POST /api/questions` (字段: `content`, `counselor_id`, `is_anonymous`, `is_public`)
-    *   *重要*: 投递时需调用微信内容安全 API (`msgSecCheck`) 进行文本审核。
-5.  **教师端接口**: 获取分配给自己的私密问题。
-
-### 5. 微信平台配置
-
-1.  登录 [微信公众平台](https://mp.weixin.qq.com/)。
-2.  在 **开发 -> 开发管理 -> 服务器域名** 中配置您的服务器域名 (request合法域名)。
-3.  在 **开发 -> 开发管理 -> 开发设置** 中获取 `AppID` 和 `AppSecret`，用于后端换取 `openid`。
-
-### 6. 钉钉通知集成 (可选)
-
-为了实现辅导员及时通知：
-1.  在钉钉群添加 "自定义机器人"。
-2.  获取 Webhook 地址。
-3.  在后端 `POST /api/questions` 接口成功后，触发 Celery 任务向钉钉发送消息。
-
-## ⚠️ 注意事项
-
-*   **数据安全**: 生产环境中请务必修改数据库密码。
-*   **隐私保护**: 只有辅导员账号才有权限查看学生真实身份，请在后端严格控制权限。
+## 🤝 贡献
+欢迎提交 Issue 或 Pull Request 来改进这个树洞！

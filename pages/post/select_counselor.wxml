@@ -11,11 +11,15 @@
         <view class="counselor-info">
           <image class="avatar" src="{{item.avatar}}" mode="aspectFill"></image>
           <view class="text-info">
-            <view class="name">{{item.name}} <text class="role">辅导员</text></view>
+            <view class="name">
+              {{item.name}} 
+              <text class="role" wx:if="{{!item.isTreeHole}}">辅导员</text>
+              <text class="role tree-hole-tag" wx:else>纯树洞</text>
+            </view>
             <view class="desc">{{item.desc}}</view>
           </view>
         </view>
-        <view class="enter-btn">进入树洞</view>
+        <view class="enter-btn">🌲 进入树洞</view>
       </view>
     </block>
   </view>

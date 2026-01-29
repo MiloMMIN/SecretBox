@@ -5,7 +5,9 @@ Page({
     counselorName: '',
     content: '',
     isAnonymous: false,
-    isPublic: false
+    isPublic: false,
+    studentClass: '',
+    studentName: ''
   },
 
   onLoad: function (options) {
@@ -33,6 +35,14 @@ Page({
     });
   },
 
+  onClassInput: function(e) {
+    this.setData({ studentClass: e.detail.value });
+  },
+
+  onNameInput: function(e) {
+    this.setData({ studentName: e.detail.value });
+  },
+
   submitPost: function() {
     if (!this.data.content.trim()) {
       wx.showToast({
@@ -40,6 +50,17 @@ Page({
         icon: 'none'
       });
       return;
+    }
+
+    // 实名校验
+    if (!this.data.isAnonymous) {
+      if (!this.data.studentClass.trim() || !this.data.studentName.trim()) {
+        wx.showToast({
+          title: '请填写真实班级和姓名',
+          icon: 'none'
+        });
+        return;
+      }
     }
 
     wx.showLoading({

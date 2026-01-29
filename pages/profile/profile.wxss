@@ -1,53 +1,116 @@
 /* pages/profile/profile.wxss */
+.container {
+  padding-bottom: 40rpx;
+}
+
 .user-card {
   display: flex;
   align-items: center;
-  padding: 40rpx 30rpx;
+  padding: 50rpx 40rpx;
+  background: linear-gradient(135deg, #FFF, #F9F9F9);
+  margin-bottom: 30rpx;
+}
+
+.avatar-btn {
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  position: relative;
+  width: 140rpx;
+  height: 140rpx;
+  margin-right: 36rpx;
+}
+
+.avatar-btn::after {
+  border: none;
 }
 
 .user-avatar {
-  width: 120rpx;
-  height: 120rpx;
+  width: 140rpx;
+  height: 140rpx;
   border-radius: 50%;
-  margin-right: 30rpx;
+  border: 6rpx solid white;
+  box-shadow: var(--shadow-md);
+}
+
+.edit-icon {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  font-size: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .user-info {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-.user-name {
-  font-size: 36rpx;
+.name-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.user-name-input {
+  font-size: 40rpx;
   font-weight: bold;
-  margin-bottom: 10rpx;
+  color: var(--text-main);
+  border-bottom: 1px dashed transparent;
+  padding-bottom: 4rpx;
+  transition: all 0.3s;
+  width: 300rpx;
+}
+
+.user-name-input:focus {
+  border-bottom-color: var(--primary-green);
+}
+
+.edit-hint {
+  font-size: 28rpx;
+  color: #ccc;
+  margin-left: 10rpx;
 }
 
 .user-role {
   font-size: 24rpx;
-  background-color: #eee;
-  padding: 4rpx 12rpx;
-  border-radius: 20rpx;
+  background-color: var(--primary-green-light);
+  color: var(--primary-green-dark);
+  padding: 6rpx 20rpx;
+  border-radius: 30rpx;
   display: inline-block;
-  color: #666;
-}
-
-.role-switch-btn {
-  font-size: 24rpx;
-  margin: 0;
+  font-weight: 500;
+  align-self: flex-start;
 }
 
 .menu-list {
-  padding: 0 30rpx;
+  padding: 0 40rpx;
+  margin-bottom: 30rpx;
 }
 
 .menu-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 30rpx 0;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 36rpx 0;
+  border-bottom: 1px solid #F5F5F5;
   font-size: 30rpx;
   color: var(--text-main);
+  transition: background-color 0.2s;
+}
+
+.menu-item:active {
+  background-color: #FAFAFA;
 }
 
 .menu-item:last-child {
@@ -55,19 +118,82 @@
 }
 
 .arrow {
-  color: #ccc;
+  color: #CFD8DC;
+  font-size: 32rpx;
+  transition: transform 0.3s;
+}
+
+.arrow.up {
+  transform: rotate(90deg);
+}
+
+.sub-list {
+  background-color: #FAFAFA;
+  padding: 10rpx 20rpx;
+  border-bottom: 1px solid #F5F5F5;
+}
+
+.sub-item {
+  padding: 20rpx 0;
+  border-bottom: 1px dashed #E0E0E0;
+}
+
+.sub-item:last-child {
+  border-bottom: none;
+}
+
+.sub-content {
+  font-size: 28rpx;
+  color: #333;
+  margin-bottom: 8rpx;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+.sub-time {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.sub-status {
+  font-size: 22rpx;
+  margin-top: 8rpx;
+  display: inline-block;
+  padding: 2rpx 10rpx;
+  border-radius: 8rpx;
+}
+
+.sub-status.replied {
+  background-color: #E8F5E9;
+  color: #4CAF50;
+}
+
+.sub-status.pending {
+  background-color: #FFF3E0;
+  color: #FF9800;
+}
+
+.empty-sub {
+  padding: 30rpx;
+  text-align: center;
+  color: #999;
+  font-size: 26rpx;
 }
 
 .section-title {
-  padding: 20rpx 30rpx 0;
+  padding: 40rpx 40rpx 20rpx;
   font-size: 28rpx;
-  color: #666;
+  color: var(--text-secondary);
   font-weight: bold;
+  letter-spacing: 1rpx;
 }
 
 .dashboard-grid {
   display: flex;
-  padding: 0 10rpx;
+  padding: 0 20rpx;
+  margin-bottom: 30rpx;
 }
 
 .grid-item {
@@ -76,32 +202,36 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 30rpx;
+  padding: 40rpx;
+  border-radius: var(--radius-md);
+  margin: 0 10rpx;
 }
 
 .count {
-  font-size: 48rpx;
+  font-size: 56rpx;
   font-weight: bold;
   color: var(--primary-green);
-  margin-bottom: 10rpx;
+  margin-bottom: 12rpx;
+  font-family: 'DIN Alternate', sans-serif;
 }
 
 .label {
   font-size: 24rpx;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .badge {
-  background-color: red;
+  background-color: var(--accent-red);
   color: white;
-  font-size: 20rpx;
-  padding: 4rpx 12rpx;
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
   border-radius: 20rpx;
+  font-weight: bold;
 }
 
 .footer-info {
   text-align: center;
-  margin-top: 60rpx;
+  margin-top: 40rpx;
   font-size: 24rpx;
-  color: #ccc;
+  color: #E0E0E0;
 }

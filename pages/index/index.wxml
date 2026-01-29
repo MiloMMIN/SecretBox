@@ -6,6 +6,25 @@
     <view class="banner-subtitle">在这里，你的声音会被听见</view>
   </view>
 
+  <!-- 搜索栏 -->
+  <view class="search-bar card">
+    <icon type="search" size="14" color="#999"/>
+    <input 
+      class="search-input" 
+      placeholder="搜索关键词..." 
+      confirm-type="search" 
+      bindconfirm="onSearch"
+      bindinput="onSearchInput"
+    />
+  </view>
+
+  <!-- 排序 Tab -->
+  <view class="sort-tabs">
+    <view class="tab-item {{currentSort === 'time' ? 'active' : ''}}" bindtap="changeSort" data-type="time">最新 🔥</view>
+    <view class="tab-item {{currentSort === 'hot' ? 'active' : ''}}" bindtap="changeSort" data-type="hot">热度 ⭐</view>
+    <view class="tab-item {{currentSort === 'discuss' ? 'active' : ''}}" bindtap="changeSort" data-type="discuss">讨论 💬</view>
+  </view>
+
   <!-- 问题列表 -->
   <view class="question-list">
     <block wx:for="{{questions}}" wx:key="id">
@@ -20,7 +39,8 @@
             {{item.reply ? '辅导员已回复' : '等待回复'}}
           </view>
           <view class="q-actions">
-            <!-- 预留点赞/评论入口 -->
+            <view class="action-item">⭐ {{item.stars || 0}}</view>
+            <view class="action-item">💬 {{item.comments || 0}}</view>
           </view>
         </view>
         <view wx:if="{{item.reply}}" class="q-reply">
@@ -36,6 +56,80 @@
     </view>
   </view>
   
-  <!-- 悬浮投递按钮 (可选，如果 TabBar 够用可移除) -->
-  <!-- <view class="fab-btn" bindtap="goToPost">+</view> -->
+  <!-- 登录授权遮罩 -->
+  <view class="login-mask" wx:if="{{showLoginModal}}">
+    <view class="login-card">
+      <view class="login-title">欢迎来到智心树洞</view>
+      <view class="login-desc">为了提供更好的服务，我们需要获取您的头像和昵称。</view>
+      <button class="avatar-wrapper" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
+        <image class="avatar" src="{{userInfo.avatarUrl || '/assets/icons/user.png'}}"></image>
+      </button> 
+      <input type="nickname" class="nickname-input" placeholder="请输入昵称" bind:change="onNicknameChange"/>
+      <button class="login-btn" bindtap="confirmLogin">授权登录</button>
+    </view>
+  </view>
+
+  <!-- 详情弹窗 -->
+  <page-container 
+    show="{{showDetail}}"
+    round="{{true}}"
+    overlay="{{true}}"
+    position="bottom"
+    custom-style="height: 85%; background-color: #F5F7F5;"
+    bind:leave="onDetailClose"
+  >
+    <view class="detail-container">
+      <view class="detail-header">
+        <text class="detail-title">问题详情</text>
+        <view class="close-btn" bindtap="onDetailClose">×</view>
+      </view>
+      
+      <scroll-view scroll-y class="detail-scroll">
+        <view class="detail-card card">
+          <view class="q-content full">{{currentQuestion.content}}</view>
+          <view class="q-info">
+            <text>{{currentQuestion.time}}</text>
+            <view class="q-stats">
+              <text>⭐ {{currentQuestion.stars}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="reply-section">
+          <view class="section-title">回复 ({{currentQuestion.replies.length || 0}})</view>
+          <block wx:for="{{currentQuestion.replies}}" wx:key="id">
+            <view class="reply-item card">
+              <view class="reply-user">
+                <image class="reply-avatar" src="{{item.user.avatarUrl || '/assets/icons/user.png'}}"></image>
+                <text class="reply-name">{{item.user.nickname}}</text>
+                <text class="reply-time">{{item.time}}</text>
+              </view>
+              <view class="reply-content">{{item.content}}</view>
+            </view>
+          </block>
+          <view wx:if="{{!currentQuestion.replies || currentQuestion.replies.length === 0}}" class="empty-reply">
+            暂无回复，快来抢沙发~
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="reply-input-area">
+        <input 
+          class="reply-input" 
+          placeholder="写下你的暖心回复..." 
+          value="{{replyContent}}" 
+          bindinput="onReplyInput"
+          confirm-type="send"
+          bindconfirm="submitReply"
+        />
+        <view class="send-btn" bindtap="submitReply">发送</view>
+      </view>
+    </view>
+  </page-container>
+
+  <!-- 悬浮提问按钮 -->
+  <view class="fab-btn" bindtap="onTapPost">
+    <text>+</text>
+  </view>
+
 </view>
