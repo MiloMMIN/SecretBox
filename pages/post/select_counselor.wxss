@@ -1,0 +1,79 @@
+/* pages/post/select_counselor.wxss */
+.header {
+  padding: 40rpx 30rpx;
+  background-color: var(--bg-green);
+  color: var(--primary-green);
+}
+
+.title {
+  font-size: 40rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 10rpx;
+}
+
+.subtitle {
+  font-size: 28rpx;
+  opacity: 0.8;
+}
+
+.counselor-list {
+  padding: 20rpx 0;
+}
+
+.counselor-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+}
+
+.counselor-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.avatar {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  background-color: #eee;
+  margin-right: 20rpx;
+}
+
+.text-info {
+  flex: 1;
+}
+
+.name {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: var(--text-main);
+  margin-bottom: 8rpx;
+}
+
+.role {
+  font-size: 24rpx;
+  color: white;
+  background-color: var(--light-green);
+  padding: 2rpx 8rpx;
+  border-radius: 6rpx;
+  margin-left: 10rpx;
+  font-weight: normal;
+}
+
+.desc {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.enter-btn {
+  background-color: var(--primary-green);
+  color: white;
+  font-size: 28rpx;
+  padding: 12rpx 24rpx;
+  border-radius: 30rpx;
+  margin-left: 20rpx;
+}

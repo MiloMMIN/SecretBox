@@ -1,0 +1,59 @@
+<!--pages/profile/profile.wxml-->
+<view class="container">
+  <view class="user-card card">
+    <image class="user-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
+    <view class="user-info">
+      <view class="user-name">{{userInfo.nickName}}</view>
+      <view class="user-role">{{userInfo.role === 'teacher' ? '辅导员' : '学生'}}</view>
+    </view>
+    <button class="role-switch-btn" size="mini" bindtap="switchRole">切换角色(测试)</button>
+  </view>
+
+  <!-- 学生视图 -->
+  <block wx:if="{{userInfo.role === 'student'}}">
+    <view class="menu-list card">
+      <view class="menu-item">
+        <text>我的提问</text>
+        <text class="arrow">></text>
+      </view>
+      <view class="menu-item">
+        <text>我的回复</text>
+        <text class="arrow">></text>
+      </view>
+    </view>
+  </block>
+
+  <!-- 教师视图 -->
+  <block wx:if="{{userInfo.role === 'teacher'}}">
+    <view class="section-title">工作台</view>
+    <view class="dashboard-grid">
+      <view class="grid-item card">
+        <view class="count">12</view>
+        <view class="label">待回复</view>
+      </view>
+      <view class="grid-item card">
+        <view class="count">45</view>
+        <view class="label">今日留言</view>
+      </view>
+    </view>
+
+    <view class="menu-list card">
+      <view class="menu-item" bindtap="showInbox">
+        <text>树洞信箱 (私密)</text>
+        <view class="badge">3</view>
+      </view>
+      <view class="menu-item">
+        <text>广场管理</text>
+        <text class="arrow">></text>
+      </view>
+      <view class="menu-item" bindtap="exportData">
+        <text>导出数据</text>
+        <text class="arrow">></text>
+      </view>
+    </view>
+  </block>
+
+  <view class="footer-info">
+    <text>智心树洞 V1.0</text>
+  </view>
+</view>

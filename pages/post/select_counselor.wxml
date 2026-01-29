@@ -1,0 +1,22 @@
+<!--pages/post/select_counselor.wxml-->
+<view class="container">
+  <view class="header">
+    <text class="title">选择倾诉对象</text>
+    <text class="subtitle">请选择一位辅导员进入私密树洞</text>
+  </view>
+
+  <view class="counselor-list">
+    <block wx:for="{{counselors}}" wx:key="id">
+      <view class="card counselor-card" bindtap="selectCounselor" data-id="{{item.id}}" data-name="{{item.name}}">
+        <view class="counselor-info">
+          <image class="avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+          <view class="text-info">
+            <view class="name">{{item.name}} <text class="role">辅导员</text></view>
+            <view class="desc">{{item.desc}}</view>
+          </view>
+        </view>
+        <view class="enter-btn">进入树洞</view>
+      </view>
+    </block>
+  </view>
+</view>

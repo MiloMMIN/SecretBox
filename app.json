@@ -1,0 +1,40 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/post/select_counselor",
+    "pages/post/create",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#FAFAFA",
+    "navigationBarTitleText": "智心树洞",
+    "navigationBarTextStyle": "black"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#4CAF50",
+    "backgroundColor": "#FFFFFF",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "广场",
+        "iconPath": "assets/icons/square.png",
+        "selectedIconPath": "assets/icons/square_active.png"
+      },
+      {
+        "pagePath": "pages/post/select_counselor",
+        "text": "投递",
+        "iconPath": "assets/icons/add.png",
+        "selectedIconPath": "assets/icons/add_active.png"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "assets/icons/user.png",
+        "selectedIconPath": "assets/icons/user_active.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

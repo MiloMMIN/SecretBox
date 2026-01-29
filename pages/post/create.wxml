@@ -1,0 +1,44 @@
+<!--pages/post/create.wxml-->
+<view class="container">
+  <view class="target-info">
+    <text>正在向 </text>
+    <text class="target-name">{{counselorName}}</text>
+    <text> 投递</text>
+  </view>
+
+  <view class="form-card card">
+    <textarea 
+      class="content-input" 
+      placeholder="请在这里写下你想说的话...（支持文字，暂不支持语音）" 
+      maxlength="500"
+      bindinput="onContentInput"
+    ></textarea>
+    <view class="word-count">{{content.length}}/500</view>
+  </view>
+
+  <view class="options-card card">
+    <view class="option-item">
+      <view class="option-label">
+        <text>匿名投递</text>
+        <text class="option-desc">开启后，你的名字将对所有人隐藏（辅导员除外）</text>
+      </view>
+      <switch color="#4CAF50" checked="{{isAnonymous}}" bindchange="onAnonymousChange"/>
+    </view>
+    
+    <view class="option-item">
+      <view class="option-label">
+        <text>公开到广场</text>
+        <text class="option-desc">开启后，问题将显示在首页广场</text>
+      </view>
+      <switch color="#4CAF50" checked="{{isPublic}}" bindchange="onPublicChange"/>
+    </view>
+  </view>
+
+  <view class="btn-area">
+    <button class="submit-btn" bindtap="submitPost" disabled="{{!content}}">投递信件</button>
+  </view>
+  
+  <view class="tips">
+    <text>温馨提示：\n1. 即使匿名，辅导员在后台仍可见您的真实身份，这是为了在紧急情况下（如涉及生命安全）能及时提供帮助。\n2. 请理性发言，文明表达。</text>
+  </view>
+</view>

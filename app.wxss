@@ -1,0 +1,50 @@
+/** app.wxss **/
+page {
+  --primary-green: #4CAF50;
+  --light-green: #81C784;
+  --bg-green: #E8F5E9;
+  
+  --primary-grey: #757575;
+  --light-grey: #BDBDBD;
+  --bg-grey: #F5F5F5;
+  
+  --accent-orange: #FF9800;
+  --text-main: #333333;
+  --text-secondary: #666666;
+  
+  background-color: var(--bg-grey);
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Segoe UI, Arial, Roboto, 'PingFang SC', 'miui', 'Hiragino Sans GB', 'Microsoft Yahei', sans-serif;
+}
+
+.container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+} 
+
+.card {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.05);
+}
+
+.btn-primary {
+  background-color: var(--primary-green);
+  color: white;
+  border-radius: 40rpx;
+}
+
+.btn-secondary {
+  background-color: white;
+  color: var(--primary-green);
+  border: 1px solid var(--primary-green);
+  border-radius: 40rpx;
+}
+
+.text-center { text-align: center; }
+.flex-row { display: flex; flex-direction: row; align-items: center; }
+.flex-col { display: flex; flex-direction: column; }
+.spacer { height: 20rpx; }

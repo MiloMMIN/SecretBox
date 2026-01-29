@@ -1,0 +1,39 @@
+// pages/post/select_counselor.js
+Page({
+  data: {
+    counselors: []
+  },
+
+  onLoad: function (options) {
+    // 模拟辅导员数据
+    this.setData({
+      counselors: [
+        {
+          id: 1,
+          name: "张老师",
+          avatar: "/assets/icons/user.png", // 暂用图标代替头像
+          desc: "数智学院辅导员，负责大一学生工作。愿做你的倾听者。"
+        },
+        {
+          id: 2,
+          name: "李老师",
+          avatar: "/assets/icons/user.png",
+          desc: "数智学院辅导员，负责心理健康教育。每一个你都独一无二。"
+        },
+        {
+          id: 3,
+          name: "王老师",
+          avatar: "/assets/icons/user.png",
+          desc: "学工办主任。有困难，找组织。"
+        }
+      ]
+    });
+  },
+
+  selectCounselor: function(e) {
+    const { id, name } = e.currentTarget.dataset;
+    wx.navigateTo({
+      url: `/pages/post/create?counselorId=${id}&counselorName=${name}`
+    });
+  }
+})

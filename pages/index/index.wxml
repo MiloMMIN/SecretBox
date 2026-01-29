@@ -1,0 +1,41 @@
+<!--pages/index/index.wxml-->
+<view class="container">
+  <!-- 顶部 Banner -->
+  <view class="banner">
+    <view class="banner-title">问题广场</view>
+    <view class="banner-subtitle">在这里，你的声音会被听见</view>
+  </view>
+
+  <!-- 问题列表 -->
+  <view class="question-list">
+    <block wx:for="{{questions}}" wx:key="id">
+      <view class="card question-card" bindtap="goToDetail" data-id="{{item.id}}">
+        <view class="q-header">
+          <view class="q-tag">公开提问</view>
+          <view class="q-time">{{item.time}}</view>
+        </view>
+        <view class="q-content">{{item.content}}</view>
+        <view class="q-footer">
+          <view class="q-status {{item.reply ? 'replied' : 'pending'}}">
+            {{item.reply ? '辅导员已回复' : '等待回复'}}
+          </view>
+          <view class="q-actions">
+            <!-- 预留点赞/评论入口 -->
+          </view>
+        </view>
+        <view wx:if="{{item.reply}}" class="q-reply">
+          <text class="reply-label">回复：</text>
+          <text>{{item.reply}}</text>
+        </view>
+      </view>
+    </block>
+    
+    <!-- 空状态 -->
+    <view wx:if="{{questions.length === 0}}" class="empty-state">
+      <text>还没有公开提问哦，快去投递吧~</text>
+    </view>
+  </view>
+  
+  <!-- 悬浮投递按钮 (可选，如果 TabBar 够用可移除) -->
+  <!-- <view class="fab-btn" bindtap="goToPost">+</view> -->
+</view>
