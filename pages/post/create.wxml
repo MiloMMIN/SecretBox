@@ -20,7 +20,7 @@
     <view class="option-item">
       <view class="option-label">
         <text>匿名投递</text>
-        <text class="option-desc">开启后，你的名字将对所有人隐藏（辅导员除外）</text>
+        <text class="option-desc">开启后，你的名字将对所有人隐藏</text>
       </view>
       <switch color="#66BB6A" checked="{{isAnonymous}}" bindchange="onAnonymousChange"/>
     </view>

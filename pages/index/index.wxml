@@ -30,7 +30,10 @@
     <block wx:for="{{questions}}" wx:key="id">
       <view class="card question-card" bindtap="goToDetail" data-id="{{item.id}}">
         <view class="q-header">
-          <view class="q-tag">公开提问</view>
+          <view class="q-user">
+            <view class="avatar-placeholder small">{{(item.user && item.user.nickName) ? item.user.nickName.slice(0, 1) : '匿'}}</view>
+            <text class="q-user-name">{{item.user && item.user.nickName ? item.user.nickName : '匿名用户'}}</text>
+          </view>
           <view class="q-time">{{item.time}}</view>
         </view>
         <view class="q-content">{{item.content}}</view>
@@ -62,7 +65,8 @@
       <view class="login-title">欢迎来到智心树洞</view>
       <view class="login-desc">为了提供更好的服务，我们需要获取您的头像和昵称。</view>
       <button class="avatar-wrapper" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
-        <image class="avatar" src="{{userInfo.avatarUrl || '/assets/icons/user.png'}}"></image>
+        <image wx:if="{{userInfo.avatarUrl}}" class="avatar" src="{{userInfo.avatarUrl}}"></image>
+        <view wx:else class="avatar placeholder-avatar">{{userInfo.nickName ? userInfo.nickName.slice(0, 1) : '微'}}</view>
       </button> 
       <input type="nickname" class="nickname-input" placeholder="请输入昵称" bind:change="onNicknameChange"/>
       <button class="login-btn" bindtap="confirmLogin">授权登录</button>
@@ -100,7 +104,8 @@
           <block wx:for="{{currentQuestion.replies}}" wx:key="id">
             <view class="reply-item card">
               <view class="reply-user">
-                <image class="reply-avatar" src="{{item.user.avatarUrl || '/assets/icons/user.png'}}"></image>
+                  <image wx:if="{{item.user.avatarUrl}}" class="reply-avatar" src="{{item.user.avatarUrl}}"></image>
+                  <view wx:else class="reply-avatar avatar-placeholder small">{{item.user.nickname ? item.user.nickname.slice(0, 1) : '微'}}</view>
                 <text class="reply-name">{{item.user.nickname}}</text>
                 <text class="reply-time">{{item.time}}</text>
               </view>

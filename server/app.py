@@ -35,6 +35,11 @@ class Config:
     # Flask 配置
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
 
+    # 角色配置
+    TEACHER_OPENIDS = [
+        openid.strip() for openid in os.getenv('TEACHER_OPENIDS', '').split(',') if openid.strip()
+    ]
+
 app = Flask(__name__)
 
 # 配置
@@ -43,12 +48,63 @@ app.config.from_object(Config)
 # 微信小程序配置
 WX_APP_ID = app.config.get('WX_APP_ID')
 WX_APP_SECRET = app.config.get('WX_APP_SECRET')
+TEACHER_OPENIDS = set(app.config.get('TEACHER_OPENIDS', []))
+
+
+def is_placeholder_wechat_value(value):
+    if not value:
+        return True
+
+    normalized = value.strip().lower()
+    placeholder_values = {
+        'your_app_id',
+        'your_app_id_here',
+        'your_app_secret',
+        'your_app_secret_here',
+    }
+    return normalized in placeholder_values or normalized.startswith('your_')
 
 db = SQLAlchemy(app)
 
 # 初始化 Celery
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
+
+
+def resolve_user_role(openid):
+    return 'teacher' if openid in TEACHER_OPENIDS else 'student'
+
+
+def serialize_user(user):
+    return {
+        'id': user.id,
+        'nickName': user.nickname,
+        'nickname': user.nickname,
+        'avatarUrl': user.avatar_url,
+        'role': user.role
+    }
+
+
+def get_authenticated_user():
+    token = request.headers.get('Authorization')
+    if not token:
+        return None
+    return User.query.filter_by(openid=token).first()
+
+
+def get_question_author_payload(question):
+    if question.is_anonymous:
+        return {
+            'nickName': '匿名用户',
+            'avatarUrl': '',
+            'role': 'student'
+        }
+
+    return {
+        'nickName': question.user.nickname or '微信用户',
+        'avatarUrl': question.user.avatar_url,
+        'role': question.user.role
+    }
 
 # --- Models ---
 class User(db.Model):
@@ -107,9 +163,9 @@ def login():
     # 换取 OpenID
     url = f"https://api.weixin.qq.com/sns/jscode2session?appid={WX_APP_ID}&secret={WX_APP_SECRET}&js_code={code}&grant_type=authorization_code"
     
-    # 开发环境/无AppID时的 Mock 逻辑
-    if not WX_APP_ID or WX_APP_ID == 'your_app_id':
-        print("Warning: Using Mock Login (No AppID configured)")
+    # 开发环境/占位配置时使用 Mock 登录
+    if is_placeholder_wechat_value(WX_APP_ID) or is_placeholder_wechat_value(WX_APP_SECRET):
+        print("Warning: Using Mock Login (WeChat credentials are not configured)")
         openid = f"mock_openid_{code}" # 模拟 OpenID
     else:
         try:
@@ -124,8 +180,10 @@ def login():
     # 查找或创建用户
     user = User.query.filter_by(openid=openid).first()
     if not user:
-        user = User(openid=openid)
+        user = User(openid=openid, role=resolve_user_role(openid))
         db.session.add(user)
+    else:
+        user.role = resolve_user_role(openid)
     
     # 更新用户信息
     if userInfo:
@@ -136,13 +194,36 @@ def login():
     
     return jsonify({
         'token': openid, # 简单起见，直接用 openid 做 token，生产环境应使用 JWT
-        'userInfo': {
-            'id': user.id,
-            'nickname': user.nickname,
-            'avatarUrl': user.avatar_url,
-            'role': user.role
-        }
+        'userInfo': serialize_user(user)
     })
+
+
+@app.route('/api/me', methods=['GET'])
+def get_me():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    return jsonify(serialize_user(user))
+
+
+@app.route('/api/me/profile', methods=['PUT'])
+def update_me_profile():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json or {}
+    nickname = (data.get('nickName') or data.get('nickname') or '').strip()
+    avatar_url = (data.get('avatarUrl') or '').strip()
+
+    if nickname:
+        user.nickname = nickname[:64]
+    if avatar_url:
+        user.avatar_url = avatar_url[:256]
+
+    db.session.commit()
+    return jsonify({'success': True, 'userInfo': serialize_user(user)})
 
 # 获取问题广场列表
 @app.route('/api/questions', methods=['GET'])
@@ -178,7 +259,8 @@ def get_questions():
             'stars': q.stars,
             'comments': reply_count,
             'reply': latest_reply.content if latest_reply else None,
-            'isPublic': q.is_public
+            'isPublic': q.is_public,
+            'user': get_question_author_payload(q)
         })
         
     return jsonify(result)
@@ -207,6 +289,7 @@ def get_question_detail(qid):
         'time': q.created_at.strftime('%Y-%m-%d %H:%M'),
         'stars': q.stars,
         'isPublic': q.is_public,
+        'user': get_question_author_payload(q),
         'replies': reply_list
     })
 
@@ -214,9 +297,7 @@ def get_question_detail(qid):
 @app.route('/api/questions', methods=['POST'])
 def create_question():
     data = request.json
-    token = request.headers.get('Authorization') # OpenID
-    
-    user = User.query.filter_by(openid=token).first()
+    user = get_authenticated_user()
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
         
@@ -238,9 +319,7 @@ def create_question():
 @app.route('/api/questions/<int:qid>/replies', methods=['POST'])
 def create_reply(qid):
     data = request.json
-    token = request.headers.get('Authorization')
-    
-    user = User.query.filter_by(openid=token).first()
+    user = get_authenticated_user()
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
         
@@ -257,8 +336,7 @@ def create_reply(qid):
 # 我的提问
 @app.route('/api/my/questions', methods=['GET'])
 def get_my_questions():
-    token = request.headers.get('Authorization')
-    user = User.query.filter_by(openid=token).first()
+    user = get_authenticated_user()
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
         
@@ -273,8 +351,7 @@ def get_my_questions():
 # 我的回复
 @app.route('/api/my/replies', methods=['GET'])
 def get_my_replies():
-    token = request.headers.get('Authorization')
-    user = User.query.filter_by(openid=token).first()
+    user = get_authenticated_user()
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
         

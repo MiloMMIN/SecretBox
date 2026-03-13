@@ -94,17 +94,36 @@
   margin-bottom: 24rpx;
 }
 
-.q-tag {
-  font-size: 22rpx;
-  padding: 4rpx 16rpx;
-  border-radius: var(--radius-sm);
-  background-color: #F5F5F5;
-  color: #999;
+.q-user {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.q-user-name {
+  font-size: 24rpx;
+  color: var(--text-secondary);
 }
 
 .q-time {
   font-size: 24rpx;
   color: var(--text-placeholder);
+}
+
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+  color: white;
+  font-weight: 700;
+}
+
+.avatar-placeholder.small {
+  width: 56rpx;
+  height: 56rpx;
+  font-size: 24rpx;
 }
 
 .q-content {
@@ -230,6 +249,12 @@
 .avatar {
   width: 100%;
   height: 100%;
+}
+
+.placeholder-avatar {
+  width: 100%;
+  height: 100%;
+  font-size: 48rpx;
 }
 
 .nickname-input {

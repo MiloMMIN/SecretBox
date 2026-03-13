@@ -3,7 +3,8 @@
   <!-- 用户信息卡片 -->
   <view class="user-card card">
     <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
-      <image class="user-avatar" src="{{userInfo.avatarUrl || '/assets/icons/user.png'}}" mode="cover"></image>
+      <image wx:if="{{userInfo.avatarUrl}}" class="user-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
+      <view wx:else class="user-avatar avatar-placeholder">{{userInfo.nickName ? userInfo.nickName.slice(0, 1) : '微'}}</view>
       <view class="edit-icon">✎</view>
     </button>
     <view class="user-info">

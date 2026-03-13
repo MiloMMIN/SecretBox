@@ -52,6 +52,16 @@
   box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.1);
 }
 
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+  color: white;
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
 .text-info {
   flex: 1;
 }

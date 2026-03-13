@@ -34,6 +34,16 @@
   box-shadow: var(--shadow-md);
 }
 
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+  color: white;
+  font-size: 56rpx;
+  font-weight: 700;
+}
+
 .edit-icon {
   position: absolute;
   bottom: 0;

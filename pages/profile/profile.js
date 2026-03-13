@@ -1,6 +1,19 @@
 // pages/profile/profile.js
 const app = getApp()
 
+function normalizeUserInfo(userInfo) {
+  if (!userInfo) {
+    return { nickName: '微信用户', avatarUrl: '', role: 'student' };
+  }
+
+  return {
+    ...userInfo,
+    nickName: userInfo.nickName || userInfo.nickname || '微信用户',
+    avatarUrl: userInfo.avatarUrl || userInfo.avatar_url || '',
+    role: userInfo.role || 'student'
+  };
+}
+
 Page({
   data: {
     userInfo: {},
@@ -13,7 +26,7 @@ Page({
 
   onLoad() {
     this.setData({
-      userInfo: app.globalData.userInfo || { nickName: '微信用户', avatarUrl: '', role: 'student' }
+      userInfo: normalizeUserInfo(app.globalData.userInfo)
     });
   },
 
@@ -21,7 +34,7 @@ Page({
     // 每次显示页面时更新用户信息（可能在其他地方修改了）
     if (app.globalData.userInfo) {
       this.setData({
-        userInfo: app.globalData.userInfo
+        userInfo: normalizeUserInfo(app.globalData.userInfo)
       });
     }
     
@@ -40,7 +53,6 @@ Page({
     });
     // 同步到全局
     app.globalData.userInfo = { ...app.globalData.userInfo, avatarUrl };
-    // TODO: 调用后端接口更新头像
     this.updateUserProfile();
   },
 
@@ -49,29 +61,67 @@ Page({
     this.setData({
       'userInfo.nickName': nickName
     });
-    // 同步到全局
-    app.globalData.userInfo = { ...app.globalData.userInfo, nickName };
   },
   
   onNicknameBlur(e) {
-      const nickName = e.detail.value;
-      // 只有当昵称改变时才更新
-      if (nickName !== app.globalData.userInfo?.nickName) {
-          this.setData({
-              'userInfo.nickName': nickName
-          });
-          app.globalData.userInfo = { ...app.globalData.userInfo, nickName };
-          this.updateUserProfile();
+      const nickName = (e.detail.value || '').trim();
+      const currentNickName = normalizeUserInfo(app.globalData.userInfo).nickName;
+
+      this.setData({
+        'userInfo.nickName': nickName || currentNickName
+      });
+
+      if (nickName && nickName !== currentNickName) {
+        this.updateUserProfile();
       }
   },
 
   updateUserProfile() {
-      // 模拟更新后端
-      wx.showToast({
-          title: '更新成功',
-          icon: 'success'
+      const token = wx.getStorageSync('token');
+      if (!token) {
+        wx.showToast({
+          title: '请先登录',
+          icon: 'none'
+        });
+        return;
+      }
+
+      const payload = {
+        nickName: (this.data.userInfo.nickName || '').trim(),
+        avatarUrl: this.data.userInfo.avatarUrl || ''
+      };
+
+      wx.request({
+        url: `${app.globalData.baseUrl}/me/profile`,
+        method: 'PUT',
+        header: {
+          'Authorization': token
+        },
+        data: payload,
+        success: (res) => {
+          if (res.statusCode === 200 && res.data.success) {
+            const userInfo = normalizeUserInfo(res.data.userInfo);
+            this.setData({ userInfo });
+            app.globalData.userInfo = userInfo;
+            wx.showToast({
+              title: '更新成功',
+              icon: 'success'
+            });
+            return;
+          }
+
+          wx.showToast({
+            title: res.data?.error || '更新失败',
+            icon: 'none'
+          });
+        },
+        fail: () => {
+          wx.showToast({
+            title: '网络错误，请稍后重试',
+            icon: 'none'
+          });
+        }
       });
-      // 实际开发中需调用 wx.request 更新服务器数据
   },
 
   // --- 列表展示 ---
@@ -94,31 +144,57 @@ Page({
   },
 
   getMyQuestions() {
-    // 模拟数据
-    // 实际项目中应调用后端 API
-    /*
     wx.request({
       url: `${app.globalData.baseUrl}/my/questions`,
       method: 'GET',
       header: { 'Authorization': wx.getStorageSync('token') },
-      success: (res) => { ... }
+      success: (res) => {
+        if (res.statusCode === 200) {
+          this.setData({ myQuestions: res.data || [] });
+          return;
+        }
+
+        wx.showToast({
+          title: res.data?.error || '加载提问失败',
+          icon: 'none'
+        });
+      },
+      fail: () => {
+        wx.showToast({
+          title: '提问记录加载失败',
+          icon: 'none'
+        });
+      }
     });
-    */
-   
-   // Mock Data
-   const mockQuestions = [
-       { id: 1, content: '最近考研压力好大，不知道该怎么办...', time: '2023-10-20', reply: '同学你好，考研是一场持久战...' },
-       { id: 2, content: '宿舍关系有点紧张，求支招', time: '2023-10-15', reply: null }
-   ];
-   this.setData({ myQuestions: mockQuestions });
   },
 
   getMyReplies() {
-    // 模拟数据
-    const mockReplies = [
-        { id: 101, content: '抱抱你，一切都会好起来的！', time: '2023-10-21' }
-    ];
-    this.setData({ myReplies: mockReplies });
+    wx.request({
+      url: `${app.globalData.baseUrl}/my/replies`,
+      method: 'GET',
+      header: { 'Authorization': wx.getStorageSync('token') },
+      success: (res) => {
+        if (res.statusCode === 200) {
+          const myReplies = (res.data || []).map((item) => ({
+            ...item,
+            content: item.content || item.my_reply || ''
+          }));
+          this.setData({ myReplies });
+          return;
+        }
+
+        wx.showToast({
+          title: res.data?.error || '加载回复失败',
+          icon: 'none'
+        });
+      },
+      fail: () => {
+        wx.showToast({
+          title: '回复记录加载失败',
+          icon: 'none'
+        });
+      }
+    });
   },
 
   goToDetail(e) {

@@ -1,6 +1,19 @@
 // app.js
 import config from './config.js';
 
+function normalizeUserInfo(userInfo) {
+  if (!userInfo) {
+    return null;
+  }
+
+  return {
+    ...userInfo,
+    nickName: userInfo.nickName || userInfo.nickname || '微信用户',
+    avatarUrl: userInfo.avatarUrl || userInfo.avatar_url || '',
+    role: userInfo.role || 'student'
+  };
+}
+
 App({
   onLaunch() {
     this.checkLogin();
@@ -15,8 +28,36 @@ App({
       this.globalData.isLoggedIn = false;
     } else {
       this.globalData.isLoggedIn = true;
-      // 可选：验证 token 有效性
+      this.fetchCurrentUser();
     }
+  },
+
+  fetchCurrentUser() {
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      return;
+    }
+
+    wx.request({
+      url: `${this.globalData.baseUrl}/me`,
+      method: 'GET',
+      header: {
+        'Authorization': token
+      },
+      success: (response) => {
+        if (response.statusCode === 200) {
+          this.globalData.userInfo = normalizeUserInfo(response.data);
+          this.globalData.isLoggedIn = true;
+          return;
+        }
+
+        if (response.statusCode === 401) {
+          wx.removeStorageSync('token');
+          this.globalData.userInfo = null;
+          this.globalData.isLoggedIn = false;
+        }
+      }
+    });
   },
 
   login(userInfo) {
@@ -35,9 +76,9 @@ App({
                 if (response.statusCode === 200) {
                   const { token, userInfo: serverUser } = response.data;
                   wx.setStorageSync('token', token);
-                  this.globalData.userInfo = serverUser;
+                  this.globalData.userInfo = normalizeUserInfo(serverUser);
                   this.globalData.isLoggedIn = true;
-                  resolve(serverUser);
+                  resolve(this.globalData.userInfo);
                 } else {
                   reject(response.data.error);
                 }

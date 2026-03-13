@@ -62,15 +62,10 @@ Page({
     }).catch(err => {
       wx.hideLoading();
       console.error(err);
-      // Mock for development if server fails
-      if (err.includes && err.includes('request:fail')) {
-         wx.showToast({ title: '服务器连接失败，使用模拟模式', icon: 'none' });
-         this.setData({ showLoginModal: false });
-         app.globalData.isLoggedIn = true;
-         this.loadQuestions(); // Load mock data logic if needed, but here we assume loadQuestions calls API
-      } else {
-        wx.showToast({ title: '登录失败', icon: 'none' });
-      }
+      wx.showToast({
+        title: typeof err === 'string' ? err : '登录失败',
+        icon: 'none'
+      });
     });
   },
 
