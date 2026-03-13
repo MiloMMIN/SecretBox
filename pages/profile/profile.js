@@ -14,12 +14,41 @@ function normalizeUserInfo(userInfo) {
   };
 }
 
+function buildEntry(profile) {
+  return {
+    kind: profile?.kind || 'teacher',
+    id: profile?.id || null,
+    nickName: profile?.nickName || '',
+    avatarUrl: profile?.avatarUrl || '',
+    desc: profile?.desc || '',
+    isActive: profile?.isActive !== false,
+    inviteCode: profile?.inviteCode || '',
+    claimed: !!profile?.claimed
+  };
+}
+
 Page({
   data: {
     userInfo: {},
     hasUserInfo: false,
     myQuestions: [],
     myReplies: [],
+    teacherStats: {
+      pendingCount: 0,
+      todayCount: 0,
+      inboxCount: 0,
+      squareCount: 0
+    },
+    teacherQuestions: [],
+    teacherViewScope: 'pending',
+    teacherViewTitle: '待回复',
+    showTeacherQuestions: false,
+    teacherLoading: false,
+    teacherInviteCode: '',
+    showTeacherUpgrade: false,
+    exportFilePath: '',
+    exportFileName: '',
+    showExportActions: false,
     showMyQuestions: false,
     showMyReplies: false
   },
@@ -42,6 +71,13 @@ Page({
     if (app.globalData.isLoggedIn) {
       this.getMyQuestions();
       this.getMyReplies();
+      if (this.data.userInfo.role === 'teacher') {
+        this.loadTeacherDashboard();
+        if (this.data.showTeacherQuestions) {
+          this.loadTeacherQuestions(this.data.teacherViewScope, this.data.teacherViewTitle);
+        }
+        this.markTeacherNotificationsRead();
+      }
     }
   },
 
@@ -103,6 +139,7 @@ Page({
             const userInfo = normalizeUserInfo(res.data.userInfo);
             this.setData({ userInfo });
             app.globalData.userInfo = userInfo;
+            wx.setStorageSync('userInfo', userInfo);
             wx.showToast({
               title: '更新成功',
               icon: 'success'
@@ -132,6 +169,79 @@ Page({
     if (this.data.showMyQuestions && this.data.myQuestions.length === 0) {
         this.getMyQuestions();
     }
+  },
+
+  toggleTeacherUpgrade() {
+    this.setData({
+      showTeacherUpgrade: !this.data.showTeacherUpgrade
+    });
+  },
+
+  onTeacherInviteCodeInput(e) {
+    this.setData({
+      teacherInviteCode: e.detail.value
+    });
+  },
+
+  activateTeacherRole() {
+    const token = wx.getStorageSync('token');
+    const inviteCode = (this.data.teacherInviteCode || '').trim();
+
+    if (!token) {
+      wx.showToast({
+        title: '请先登录',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (!inviteCode) {
+      wx.showToast({
+        title: '请输入邀请码',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.request({
+      url: `${app.globalData.baseUrl}/me/role`,
+      method: 'POST',
+      header: {
+        'Authorization': token
+      },
+      data: {
+        inviteCode
+      },
+      success: (res) => {
+        if (res.statusCode === 200 && res.data.success) {
+          const userInfo = normalizeUserInfo(res.data.userInfo);
+          app.globalData.userInfo = userInfo;
+          wx.setStorageSync('userInfo', userInfo);
+          this.setData({
+            userInfo,
+            teacherInviteCode: '',
+            showTeacherUpgrade: false
+          });
+          this.loadTeacherDashboard();
+          wx.showToast({
+            title: '已切换为教师',
+            icon: 'success'
+          });
+          return;
+        }
+
+        wx.showToast({
+          title: res.data?.error || '激活失败',
+          icon: 'none'
+        });
+      },
+      fail: () => {
+        wx.showToast({
+          title: '网络错误，请稍后重试',
+          icon: 'none'
+        });
+      }
+    });
   },
 
   toggleMyReplies() {
@@ -197,6 +307,67 @@ Page({
     });
   },
 
+  loadTeacherDashboard() {
+    wx.request({
+      url: `${app.globalData.baseUrl}/teacher/dashboard`,
+      method: 'GET',
+      header: { 'Authorization': wx.getStorageSync('token') },
+      success: (res) => {
+        if (res.statusCode === 200) {
+          this.setData({ teacherStats: res.data || this.data.teacherStats });
+          app.refreshTeacherNotificationBadge();
+          return;
+        }
+
+        wx.showToast({
+          title: res.data?.error || '教师数据加载失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  openTeacherScope(e) {
+    const { scope, title } = e.currentTarget.dataset;
+    this.loadTeacherQuestions(scope, title);
+  },
+
+  loadTeacherQuestions(scope, title) {
+    this.setData({
+      teacherViewScope: scope,
+      teacherViewTitle: title,
+      showTeacherQuestions: true,
+      teacherLoading: true
+    });
+
+    wx.request({
+      url: `${app.globalData.baseUrl}/teacher/questions`,
+      method: 'GET',
+      header: { 'Authorization': wx.getStorageSync('token') },
+      data: { scope },
+      success: (res) => {
+        this.setData({ teacherLoading: false });
+        if (res.statusCode === 200) {
+          this.setData({ teacherQuestions: res.data || [] });
+          this.markTeacherNotificationsRead();
+          return;
+        }
+
+        wx.showToast({
+          title: res.data?.error || '教师列表加载失败',
+          icon: 'none'
+        });
+      },
+      fail: () => {
+        this.setData({ teacherLoading: false });
+        wx.showToast({
+          title: '教师列表加载失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
   goToDetail(e) {
       // 如果需要跳转到详情页
       const id = e.currentTarget.dataset.id;
@@ -209,21 +380,124 @@ Page({
   },
 
   showInbox() {
-    wx.showModal({
-      title: '树洞信箱',
-      content: '此处将显示分配给您的私密留言。支持查看学生真实身份（需二次确认）。',
-      showCancel: false
+    this.loadTeacherQuestions('inbox', '树洞信箱');
+  },
+
+  markTeacherNotificationsRead() {
+    wx.request({
+      url: `${app.globalData.baseUrl}/teacher/notifications/read`,
+      method: 'POST',
+      header: { 'Authorization': wx.getStorageSync('token') },
+      complete: () => {
+        app.refreshTeacherNotificationBadge();
+      }
+    });
+  },
+
+  showSquareManager() {
+    wx.navigateTo({
+      url: '/pages/teacher/square_manage/index'
+    });
+  },
+
+  showCounselorManager() {
+    wx.navigateTo({
+      url: '/pages/teacher/counselor_manage/index'
     });
   },
 
   exportData() {
-    wx.showLoading({ title: '生成报表中...' });
-    setTimeout(() => {
-      wx.hideLoading();
-      wx.showToast({
-        title: '导出成功(模拟)',
-        icon: 'success'
+    const scope = this.data.teacherViewScope || 'all';
+    const token = wx.getStorageSync('token');
+
+    wx.showLoading({ title: '导出中...' });
+    wx.downloadFile({
+      url: `${app.globalData.baseUrl}/teacher/export?scope=${scope}`,
+      header: {
+        'Authorization': token
+      },
+      success: (res) => {
+        wx.hideLoading();
+        if (res.statusCode === 200) {
+          wx.saveFile({
+            tempFilePath: res.tempFilePath,
+            success: (saveRes) => {
+              this.setData({
+                exportFilePath: saveRes.savedFilePath,
+                exportFileName: `secretbox-${scope}.xls`,
+                showExportActions: true
+              });
+            },
+            fail: () => {
+              this.setData({
+                exportFilePath: res.tempFilePath,
+                exportFileName: `secretbox-${scope}.xls`,
+                showExportActions: true
+              });
+            }
+          });
+          return;
+        }
+
+        wx.showToast({
+          title: '导出失败',
+          icon: 'none'
+        });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({
+          title: '导出失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  previewExportFile() {
+    if (!this.data.exportFilePath) {
+      return;
+    }
+
+    wx.openDocument({
+      filePath: this.data.exportFilePath,
+      fileType: 'xls',
+      showMenu: true,
+      fail: () => {
+        wx.showToast({
+          title: '当前环境无法预览，请在真机中打开',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  shareExportFile() {
+    if (!this.data.exportFilePath) {
+      return;
+    }
+
+    if (typeof wx.shareFileMessage === 'function') {
+      wx.shareFileMessage({
+        filePath: this.data.exportFilePath,
+        fileName: this.data.exportFileName || 'secretbox-export.xls',
+        fail: () => {
+          wx.showToast({
+            title: '当前环境不支持直接分享文件',
+            icon: 'none'
+          });
+        }
       });
-    }, 1500);
+      return;
+    }
+
+    wx.showToast({
+      title: '当前环境不支持直接分享文件，请先预览后转发',
+      icon: 'none'
+    });
+  },
+
+  closeExportActions() {
+    this.setData({ showExportActions: false });
   }
 })

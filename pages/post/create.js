@@ -15,7 +15,7 @@ Page({
   onLoad: function (options) {
     this.setData({
       counselorId: options.counselorId,
-      counselorName: options.counselorName || '辅导员'
+      counselorName: options.counselorName || '教师'
     });
   },
 

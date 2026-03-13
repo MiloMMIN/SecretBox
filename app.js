@@ -21,6 +21,7 @@ App({
 
   checkLogin() {
     const token = wx.getStorageSync('token');
+    const cachedUserInfo = wx.getStorageSync('userInfo');
     if (!token) {
       // 未登录，引导去授权
       // 由于 onLaunch 是异步的，这里通常不做强制跳转，而是在页面 onShow 检查
@@ -28,6 +29,9 @@ App({
       this.globalData.isLoggedIn = false;
     } else {
       this.globalData.isLoggedIn = true;
+      if (cachedUserInfo) {
+        this.globalData.userInfo = normalizeUserInfo(cachedUserInfo);
+      }
       this.fetchCurrentUser();
     }
   },
@@ -48,14 +52,46 @@ App({
         if (response.statusCode === 200) {
           this.globalData.userInfo = normalizeUserInfo(response.data);
           this.globalData.isLoggedIn = true;
+          wx.setStorageSync('userInfo', this.globalData.userInfo);
+          this.refreshTeacherNotificationBadge();
           return;
         }
 
         if (response.statusCode === 401) {
           wx.removeStorageSync('token');
+          wx.removeStorageSync('userInfo');
           this.globalData.userInfo = null;
           this.globalData.isLoggedIn = false;
+          wx.removeTabBarBadge({ index: 2 });
         }
+      }
+    });
+  },
+
+  refreshTeacherNotificationBadge() {
+    const token = wx.getStorageSync('token');
+    const userInfo = this.globalData.userInfo;
+    if (!token || !userInfo || userInfo.role !== 'teacher') {
+      wx.removeTabBarBadge({ index: 2 });
+      return;
+    }
+
+    wx.request({
+      url: `${this.globalData.baseUrl}/teacher/dashboard`,
+      method: 'GET',
+      header: {
+        'Authorization': token
+      },
+      success: (response) => {
+        if (response.statusCode === 200 && response.data?.unreadCount > 0) {
+          wx.setTabBarBadge({
+            index: 2,
+            text: String(Math.min(response.data.unreadCount, 99))
+          });
+          return;
+        }
+
+        wx.removeTabBarBadge({ index: 2 });
       }
     });
   },
@@ -78,6 +114,8 @@ App({
                   wx.setStorageSync('token', token);
                   this.globalData.userInfo = normalizeUserInfo(serverUser);
                   this.globalData.isLoggedIn = true;
+                  wx.setStorageSync('userInfo', this.globalData.userInfo);
+                  this.refreshTeacherNotificationBadge();
                   resolve(this.globalData.userInfo);
                 } else {
                   reject(response.data.error);

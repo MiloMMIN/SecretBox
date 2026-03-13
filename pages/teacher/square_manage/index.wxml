@@ -1,0 +1,67 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="empty-state">加载中...</view>
+  <block wx:elif="{{questions.length}}">
+    <view class="question-card" wx:for="{{questions}}" wx:key="id" bindtap="openQuestion" data-id="{{item.id}}">
+      <view class="question-top">
+        <view class="question-type">广场</view>
+        <view class="question-time">{{item.time}}</view>
+      </view>
+      <view class="question-content">{{item.content}}</view>
+      <view class="question-meta">
+        <text>{{item.author.nickName}}</text>
+        <text>{{item.comments}} 条回复</text>
+      </view>
+      <view wx:if="{{item.latestReplyPreview}}" class="question-latest">最新回复：{{item.latestReplyPreview}}</view>
+      <view class="question-actions">
+        <button class="danger-btn" catchtap="deleteQuestion" data-id="{{item.id}}">删除留言</button>
+      </view>
+    </view>
+  </block>
+  <view wx:else class="empty-state">暂无广场留言</view>
+
+  <page-container
+    show="{{showDetail}}"
+    round="{{true}}"
+    overlay="{{true}}"
+    position="bottom"
+    custom-style="height: 82%; background-color: #F5F7F5;"
+    bind:leave="closeDetail"
+  >
+    <view class="detail-container" wx:if="{{currentQuestion}}">
+      <view class="detail-header">
+        <text class="detail-title">留言详情</text>
+        <view class="close-btn" bindtap="closeDetail">×</view>
+      </view>
+      <scroll-view scroll-y class="detail-scroll">
+        <view class="detail-card">
+          <view class="question-content">{{currentQuestion.content}}</view>
+          <view class="question-meta">
+            <text>{{currentQuestion.user.nickName}}</text>
+            <text>{{currentQuestion.time}}</text>
+          </view>
+          <button class="danger-btn full" bindtap="deleteQuestion" data-id="{{currentQuestion.id}}">删除整条留言</button>
+        </view>
+        <view class="reply-section">
+          <view class="section-title">回复管理</view>
+          <block wx:for="{{currentQuestion.replies}}" wx:key="id">
+            <view class="reply-card">
+              <view class="reply-top">
+                <view class="reply-user-row">
+                  <text class="reply-name">{{item.user.nickname}}</text>
+                  <text class="reply-role {{item.user.role}}">{{item.user.role === 'teacher' ? '教师' : '学生'}}</text>
+                </view>
+                <text class="reply-time">{{item.time}}</text>
+              </view>
+              <view wx:if="{{item.content}}" class="reply-content">{{item.content}}</view>
+              <view wx:if="{{item.images && item.images.length}}" class="reply-images">
+                <image wx:for="{{item.images}}" wx:key="*this" class="reply-image" src="{{item}}" mode="aspectFill" bindtap="previewImage" data-url="{{item}}" data-urls="{{item.images}}"></image>
+              </view>
+              <button class="danger-btn small" bindtap="deleteReply" data-id="{{item.id}}">删除回复</button>
+            </view>
+          </block>
+          <view wx:if="{{!currentQuestion.replies.length}}" class="empty-state">暂无回复</view>
+        </view>
+      </scroll-view>
+    </view>
+  </page-container>
+</view>

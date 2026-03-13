@@ -12,13 +12,23 @@
         <input type="nickname" class="user-name-input" value="{{userInfo.nickName}}" placeholder="点击设置昵称" bind:change="onNicknameChange" bindblur="onNicknameBlur"/>
         <view class="edit-hint">✎</view>
       </view>
-      <view class="user-role">{{userInfo.role === 'teacher' ? '辅导员' : '学生'}}</view>
+      <view class="user-role">{{userInfo.role === 'teacher' ? '教师' : '学生'}}</view>
     </view>
   </view>
 
   <!-- 学生视图 -->
   <block wx:if="{{userInfo.role === 'student' || !userInfo.role}}">
     <view class="menu-list card">
+      <view class="menu-item" bindtap="toggleTeacherUpgrade">
+        <text>教师身份激活</text>
+        <text class="arrow {{showTeacherUpgrade ? 'up' : ''}}">></text>
+      </view>
+      <view class="sub-list" wx:if="{{showTeacherUpgrade}}">
+        <view class="upgrade-tip">小程序无法识别微信号本身，教师身份建议使用邀请码激活。</view>
+        <input class="upgrade-input" password placeholder="请输入教师邀请码" value="{{teacherInviteCode}}" bindinput="onTeacherInviteCodeInput" />
+        <button class="upgrade-btn" bindtap="activateTeacherRole">激活为教师</button>
+      </view>
+
       <!-- 我的提问 -->
       <view class="menu-item" bindtap="toggleMyQuestions">
         <text>我的提问</text>
@@ -29,7 +39,7 @@
           <view class="sub-item" wx:for="{{myQuestions}}" wx:key="id" bindtap="goToDetail" data-id="{{item.id}}">
             <view class="sub-content">{{item.content}}</view>
             <view class="sub-time">{{item.time}}</view>
-            <view class="sub-status {{item.reply ? 'replied' : 'pending'}}">{{item.reply ? '已回复' : '待回复'}}</view>
+            <view class="sub-status {{item.hasTeacherReply ? 'replied' : 'pending'}}">{{item.hasTeacherReply ? '教师已回复' : '待教师回复'}}</view>
           </view>
         </block>
         <view class="empty-sub" wx:else>暂无提问记录</view>
@@ -56,12 +66,12 @@
   <block wx:if="{{userInfo.role === 'teacher'}}">
     <view class="section-title">工作台</view>
     <view class="dashboard-grid">
-      <view class="grid-item card">
-        <view class="count">12</view>
+      <view class="grid-item card" bindtap="openTeacherScope" data-scope="pending" data-title="待回复">
+        <view class="count">{{teacherStats.pendingCount}}</view>
         <view class="label">待回复</view>
       </view>
-      <view class="grid-item card">
-        <view class="count">45</view>
+      <view class="grid-item card" bindtap="openTeacherScope" data-scope="today" data-title="今日留言">
+        <view class="count">{{teacherStats.todayCount}}</view>
         <view class="label">今日留言</view>
       </view>
     </view>
@@ -69,10 +79,14 @@
     <view class="menu-list card">
       <view class="menu-item" bindtap="showInbox">
         <text>树洞信箱 (私密)</text>
-        <view class="badge">3</view>
+        <view class="badge">{{teacherStats.inboxCount}}</view>
       </view>
-      <view class="menu-item">
+      <view class="menu-item" bindtap="showSquareManager">
         <text>广场管理</text>
+        <text class="arrow">></text>
+      </view>
+      <view class="menu-item" bindtap="showCounselorManager">
+        <text>投递对象管理</text>
         <text class="arrow">></text>
       </view>
       <view class="menu-item" bindtap="exportData">
@@ -80,7 +94,38 @@
         <text class="arrow">></text>
       </view>
     </view>
+
+    <view class="menu-list card" wx:if="{{showTeacherQuestions}}">
+      <view class="teacher-panel-title">{{teacherViewTitle}}</view>
+      <view wx:if="{{teacherLoading}}" class="empty-sub">加载中...</view>
+      <block wx:elif="{{teacherQuestions.length > 0}}">
+        <view class="teacher-question-item" wx:for="{{teacherQuestions}}" wx:key="id">
+          <view class="teacher-question-top">
+            <text class="teacher-question-type {{item.isPublic ? 'public' : 'private'}}">{{item.isPublic ? '广场' : '私密'}}</text>
+            <text class="teacher-question-time">{{item.time}}</text>
+          </view>
+          <view class="teacher-question-content">{{item.content}}</view>
+          <view class="teacher-question-meta">
+            <text wx:if="{{item.student}}">{{item.student.className}} {{item.student.name}}</text>
+            <text wx:else>{{item.author.nickName}}</text>
+            <text class="teacher-question-status {{item.hasTeacherReply ? 'done' : 'todo'}}">{{item.hasTeacherReply ? '已回复' : '待回复'}}</text>
+          </view>
+          <view wx:if="{{item.latestReplyPreview}}" class="teacher-question-latest">最新回复：{{item.latestReplyPreview}}</view>
+        </view>
+      </block>
+      <view wx:else class="empty-sub">暂无相关内容</view>
+    </view>
   </block>
+
+  <view class="export-mask" wx:if="{{showExportActions}}">
+    <view class="export-card">
+      <view class="export-title">导出完成</view>
+      <view class="export-desc">文件已生成，可预览或直接分享给微信好友。</view>
+      <button class="upgrade-btn" bindtap="previewExportFile">预览文件</button>
+      <button class="upgrade-btn secondary" bindtap="shareExportFile">分享文件</button>
+      <view class="export-close" bindtap="closeExportActions">关闭</view>
+    </view>
+  </view>
 
   <view class="footer-info">
     <text>智心树洞 V1.0</text>

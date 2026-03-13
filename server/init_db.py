@@ -1,7 +1,24 @@
 import time
 import sys
 from sqlalchemy.exc import OperationalError
+from sqlalchemy import inspect, text
 from app import app, db
+
+
+def ensure_schema_updates():
+    inspector = inspect(db.engine)
+
+    tables = set(inspector.get_table_names())
+
+    if 'teacher_profile' in tables:
+        teacher_profile_columns = {column['name'] for column in inspector.get_columns('teacher_profile')}
+        if 'last_checked_at' not in teacher_profile_columns:
+            print("检测到 teacher_profile 缺少 last_checked_at，正在补齐...")
+            db.session.execute(text("ALTER TABLE teacher_profile ADD COLUMN last_checked_at DATETIME NULL"))
+            db.session.commit()
+
+    if 'teacher_invite' not in tables:
+        print("检测到 teacher_invite 表不存在，将由 create_all 创建。")
 
 def init_db():
     print("等待数据库连接...")
@@ -28,6 +45,7 @@ def init_db():
                 # 创建表
                 print("正在创建数据库表...")
                 db.create_all()
+                ensure_schema_updates()
                 print("数据库表创建完成！")
                 return True
                 

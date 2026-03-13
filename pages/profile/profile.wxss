@@ -143,6 +143,31 @@
   border-bottom: 1px solid #F5F5F5;
 }
 
+.upgrade-tip {
+  font-size: 24rpx;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding: 16rpx 0;
+}
+
+.upgrade-input {
+  height: 80rpx;
+  background: white;
+  border-radius: 16rpx;
+  padding: 0 24rpx;
+  font-size: 28rpx;
+  margin: 8rpx 0 16rpx;
+}
+
+.upgrade-btn {
+  height: 72rpx;
+  line-height: 72rpx;
+  background: var(--primary-green);
+  color: white;
+  border-radius: 36rpx;
+  font-size: 28rpx;
+}
+
 .sub-item {
   padding: 20rpx 0;
   border-bottom: 1px dashed #E0E0E0;
@@ -217,6 +242,89 @@
   margin: 0 10rpx;
 }
 
+.teacher-panel-title {
+  font-size: 30rpx;
+  color: var(--text-main);
+  font-weight: 600;
+  padding: 20rpx 0;
+}
+
+.teacher-question-item {
+  padding: 24rpx 0;
+  border-bottom: 1px dashed #E0E0E0;
+}
+
+.teacher-question-item:last-child {
+  border-bottom: none;
+}
+
+.teacher-question-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.teacher-question-type {
+  padding: 6rpx 14rpx;
+  border-radius: 18rpx;
+  font-size: 22rpx;
+}
+
+.teacher-question-type.public {
+  color: #1565C0;
+  background: #E3F2FD;
+}
+
+.teacher-question-type.private {
+  color: var(--primary-green-dark);
+  background: var(--primary-green-light);
+}
+
+.teacher-question-time {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.teacher-question-content {
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #333;
+  margin-bottom: 12rpx;
+}
+
+.teacher-question-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 24rpx;
+  color: #78909C;
+}
+
+.teacher-question-status {
+  padding: 4rpx 12rpx;
+  border-radius: 16rpx;
+}
+
+.teacher-question-status.done {
+  color: #43A047;
+  background: #E8F5E9;
+}
+
+.teacher-question-status.todo {
+  color: #FB8C00;
+  background: #FFF3E0;
+}
+
+.teacher-question-latest {
+  margin-top: 14rpx;
+  font-size: 24rpx;
+  color: #607D8B;
+  background: #F5F7F5;
+  border-radius: 14rpx;
+  padding: 14rpx 18rpx;
+}
+
 .count {
   font-size: 56rpx;
   font-weight: bold;
@@ -237,6 +345,51 @@
   padding: 4rpx 14rpx;
   border-radius: 20rpx;
   font-weight: bold;
+}
+
+.secondary {
+  margin-top: 16rpx;
+  background: #ECEFF1;
+  color: #455A64;
+}
+
+.export-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+}
+
+.export-card {
+  width: 560rpx;
+  background: white;
+  border-radius: 28rpx;
+  padding: 40rpx 32rpx;
+}
+
+.export-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: var(--text-main);
+  text-align: center;
+}
+
+.export-desc {
+  margin: 20rpx 0 30rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #78909C;
+  text-align: center;
+}
+
+.export-close {
+  margin-top: 20rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #90A4AE;
 }
 
 .footer-info {

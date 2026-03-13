@@ -38,17 +38,17 @@
         </view>
         <view class="q-content">{{item.content}}</view>
         <view class="q-footer">
-          <view class="q-status {{item.reply ? 'replied' : 'pending'}}">
-            {{item.reply ? '辅导员已回复' : '等待回复'}}
+          <view class="q-status {{item.hasTeacherReply ? 'replied' : 'pending'}}">
+            {{item.hasTeacherReply ? '已回复' : '等待回复'}}
           </view>
           <view class="q-actions">
-            <view class="action-item">⭐ {{item.stars || 0}}</view>
+            <view class="action-item star-action {{item.starred ? 'active' : ''}}" catchtap="toggleStar" data-id="{{item.id}}">⭐ {{item.stars || 0}}</view>
             <view class="action-item">💬 {{item.comments || 0}}</view>
           </view>
         </view>
-        <view wx:if="{{item.reply}}" class="q-reply">
-          <text class="reply-label">回复：</text>
-          <text>{{item.reply}}</text>
+        <view wx:if="{{item.latestReplyPreview}}" class="q-reply">
+          <text class="reply-label">最新回复：</text>
+          <text>{{item.latestReplyPreview}}</text>
         </view>
       </view>
     </block>
@@ -94,7 +94,7 @@
           <view class="q-info">
             <text>{{currentQuestion.time}}</text>
             <view class="q-stats">
-              <text>⭐ {{currentQuestion.stars}}</text>
+              <text class="detail-star {{currentQuestion.starred ? 'active' : ''}}" bindtap="toggleCurrentQuestionStar">⭐ {{currentQuestion.stars}}</text>
             </view>
           </view>
         </view>
@@ -107,9 +107,13 @@
                   <image wx:if="{{item.user.avatarUrl}}" class="reply-avatar" src="{{item.user.avatarUrl}}"></image>
                   <view wx:else class="reply-avatar avatar-placeholder small">{{item.user.nickname ? item.user.nickname.slice(0, 1) : '微'}}</view>
                 <text class="reply-name">{{item.user.nickname}}</text>
+                <text class="reply-role {{item.user.role === 'teacher' ? 'teacher' : 'student'}}">{{item.user.role === 'teacher' ? '教师' : '学生'}}</text>
                 <text class="reply-time">{{item.time}}</text>
               </view>
               <view class="reply-content">{{item.content}}</view>
+              <view wx:if="{{item.images && item.images.length}}" class="reply-images">
+                <image wx:for="{{item.images}}" wx:key="*this" class="reply-image" src="{{item}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{item}}"></image>
+              </view>
             </view>
           </block>
           <view wx:if="{{!currentQuestion.replies || currentQuestion.replies.length === 0}}" class="empty-reply">
@@ -119,15 +123,26 @@
       </scroll-view>
 
       <view class="reply-input-area">
-        <input 
-          class="reply-input" 
-          placeholder="写下你的暖心回复..." 
-          value="{{replyContent}}" 
-          bindinput="onReplyInput"
-          confirm-type="send"
-          bindconfirm="submitReply"
-        />
-        <view class="send-btn" bindtap="submitReply">发送</view>
+        <view class="reply-compose">
+          <view wx:if="{{replyImages.length}}" class="reply-preview-list">
+            <view wx:for="{{replyImages}}" wx:key="*this" class="reply-preview-item">
+              <image class="reply-preview-image" src="{{item}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{item}}"></image>
+              <view class="reply-preview-remove" catchtap="removeReplyImage" data-index="{{index}}">×</view>
+            </view>
+          </view>
+          <view class="reply-compose-row">
+            <view class="image-btn" bindtap="chooseReplyImages">图</view>
+            <input 
+              class="reply-input" 
+              placeholder="写下你的暖心回复..." 
+              value="{{replyContent}}" 
+              bindinput="onReplyInput"
+              confirm-type="send"
+              bindconfirm="submitReply"
+            />
+            <view class="send-btn" bindtap="submitReply">发送</view>
+          </view>
+        </view>
       </view>
     </view>
   </page-container>

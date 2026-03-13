@@ -1,0 +1,150 @@
+.container {
+  padding: 26rpx;
+}
+
+.add-btn {
+  margin-bottom: 22rpx;
+  background: linear-gradient(135deg, #66BB6A, #43A047);
+  color: white;
+  border-radius: 34rpx;
+  font-size: 28rpx;
+}
+
+.profile-tabs {
+  white-space: nowrap;
+  margin-bottom: 24rpx;
+}
+
+.profile-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140rpx;
+  height: 66rpx;
+  padding: 0 26rpx;
+  border-radius: 34rpx;
+  background: #ECEFF1;
+  color: #607D8B;
+  font-size: 26rpx;
+  margin-right: 16rpx;
+}
+
+.profile-tab.active {
+  background: linear-gradient(135deg, #66BB6A, #43A047);
+  color: white;
+}
+
+.editor-card {
+  background: white;
+  border-radius: 28rpx;
+  padding: 32rpx;
+  box-shadow: 0 10rpx 24rpx rgba(34, 68, 56, 0.06);
+}
+
+.avatar-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28rpx;
+}
+
+.avatar {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  margin-bottom: 18rpx;
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+  color: white;
+  font-size: 60rpx;
+  font-weight: 700;
+}
+
+.pick-avatar-btn,
+.save-btn {
+  background: #66BB6A;
+  color: white;
+  border-radius: 34rpx;
+  font-size: 28rpx;
+}
+
+.invite-box {
+  background: #F5F7F5;
+  border-radius: 18rpx;
+  padding: 18rpx 20rpx;
+  margin-bottom: 26rpx;
+}
+
+.invite-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.invite-code {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #37474F;
+  letter-spacing: 3rpx;
+}
+
+.copy-btn {
+  background: #E8F5E9;
+  color: #43A047;
+  border-radius: 28rpx;
+  font-size: 24rpx;
+  padding: 0 24rpx;
+  line-height: 56rpx;
+}
+
+.form-group {
+  margin-bottom: 24rpx;
+}
+
+.label {
+  font-size: 26rpx;
+  color: #607D8B;
+  margin-bottom: 12rpx;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  background: #F5F7F5;
+  border-radius: 18rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+  color: #37474F;
+  box-sizing: border-box;
+}
+
+.textarea {
+  min-height: 180rpx;
+}
+
+.switch-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24rpx;
+  margin-bottom: 30rpx;
+}
+
+.hint {
+  font-size: 22rpx;
+  color: #90A4AE;
+  line-height: 1.5;
+}
+
+.empty-state {
+  padding: 120rpx 20rpx;
+  text-align: center;
+  color: #90A4AE;
+  font-size: 26rpx;
+}

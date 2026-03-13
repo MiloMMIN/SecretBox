@@ -4,7 +4,9 @@
     "pages/post/select_counselor",
     "pages/post/create",
     "pages/square_post/index",
-    "pages/profile/profile"
+    "pages/profile/profile",
+    "pages/teacher/square_manage/index",
+    "pages/teacher/counselor_manage/index"
   ],
   "window": {
     "backgroundTextStyle": "light",

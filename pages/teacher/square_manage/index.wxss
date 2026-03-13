@@ -1,0 +1,155 @@
+.container {
+  padding: 24rpx;
+}
+
+.question-card,
+.detail-card,
+.reply-card {
+  background: white;
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 10rpx 24rpx rgba(34, 68, 56, 0.06);
+}
+
+.question-top,
+.question-meta,
+.reply-top,
+.reply-user-row,
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.question-type {
+  padding: 6rpx 14rpx;
+  border-radius: 18rpx;
+  background: #E3F2FD;
+  color: #1976D2;
+  font-size: 22rpx;
+}
+
+.question-time,
+.reply-time,
+.question-meta {
+  font-size: 22rpx;
+  color: #90A4AE;
+}
+
+.question-content,
+.reply-content {
+  font-size: 30rpx;
+  color: #37474F;
+  line-height: 1.65;
+  margin: 18rpx 0;
+}
+
+.question-latest {
+  background: #F5F7F5;
+  border-radius: 18rpx;
+  padding: 16rpx 18rpx;
+  color: #607D8B;
+  font-size: 24rpx;
+}
+
+.question-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18rpx;
+}
+
+.danger-btn {
+  background: #FFEBEE;
+  color: #D32F2F;
+  border-radius: 32rpx;
+  font-size: 24rpx;
+  padding: 0 26rpx;
+  line-height: 64rpx;
+}
+
+.danger-btn.full {
+  margin-top: 10rpx;
+}
+
+.danger-btn.small {
+  margin-top: 18rpx;
+}
+
+.detail-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-header {
+  padding: 28rpx 30rpx 10rpx;
+  background: white;
+}
+
+.detail-title {
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.close-btn {
+  font-size: 40rpx;
+  color: #90A4AE;
+}
+
+.detail-scroll {
+  flex: 1;
+  padding: 20rpx 24rpx 40rpx;
+}
+
+.reply-section {
+  padding-bottom: 30rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  color: #607D8B;
+  margin: 8rpx 0 18rpx;
+}
+
+.reply-name {
+  font-size: 26rpx;
+  color: #37474F;
+  font-weight: 600;
+}
+
+.reply-role {
+  margin-left: 12rpx;
+  font-size: 20rpx;
+  padding: 4rpx 10rpx;
+  border-radius: 16rpx;
+}
+
+.reply-role.teacher {
+  background: #E8F5E9;
+  color: #43A047;
+}
+
+.reply-role.student {
+  background: #ECEFF1;
+  color: #607D8B;
+}
+
+.reply-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.reply-image {
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 16rpx;
+}
+
+.empty-state {
+  padding: 80rpx 20rpx;
+  text-align: center;
+  color: #90A4AE;
+  font-size: 26rpx;
+}

@@ -14,7 +14,9 @@ Page({
     // 详情页相关
     showDetail: false,
     currentQuestion: {},
-    replyContent: ''
+    replyContent: '',
+    replyImages: [],
+    uploadingReplyImage: false
   },
 
   onLoad: function (options) {
@@ -70,9 +72,11 @@ Page({
   },
 
   loadQuestions: function() {
+    const token = wx.getStorageSync('token');
     wx.request({
       url: `${app.globalData.baseUrl}/questions`,
       method: 'GET',
+      header: token ? { 'Authorization': token } : {},
       data: {
         search: this.data.searchKeyword,
         sort: this.data.currentSort
@@ -110,9 +114,11 @@ Page({
 
   fetchQuestionDetail(id) {
     wx.showLoading({ title: '加载中' });
+    const token = wx.getStorageSync('token');
     wx.request({
       url: `${app.globalData.baseUrl}/questions/${id}`,
       method: 'GET',
+      header: token ? { 'Authorization': token } : {},
       success: (res) => {
         wx.hideLoading();
         if (res.statusCode === 200) {
@@ -133,9 +139,159 @@ Page({
     this.setData({ replyContent: e.detail.value });
   },
 
+  chooseReplyImages() {
+    if (this.data.uploadingReplyImage) {
+      return;
+    }
+
+    const remainCount = 3 - this.data.replyImages.length;
+    if (remainCount <= 0) {
+      wx.showToast({
+        title: '最多上传3张图片',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.chooseMedia({
+      count: remainCount,
+      mediaType: ['image'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const files = (res.tempFiles || []).map((item) => item.tempFilePath);
+        if (!files.length) {
+          return;
+        }
+        this.uploadReplyImages(files);
+      }
+    });
+  },
+
+  uploadReplyImages(filePaths) {
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      return;
+    }
+
+    this.setData({ uploadingReplyImage: true });
+
+    const uploaded = [];
+    const uploadNext = (index) => {
+      if (index >= filePaths.length) {
+        this.setData({
+          replyImages: [...this.data.replyImages, ...uploaded],
+          uploadingReplyImage: false
+        });
+        return;
+      }
+
+      wx.uploadFile({
+        url: `${app.globalData.baseUrl}/uploads/image`,
+        filePath: filePaths[index],
+        name: 'file',
+        header: {
+          'Authorization': token
+        },
+        success: (res) => {
+          const data = JSON.parse(res.data || '{}');
+          if (res.statusCode === 200 && data.success) {
+            uploaded.push(data.url);
+            uploadNext(index + 1);
+            return;
+          }
+
+          this.setData({ uploadingReplyImage: false });
+          wx.showToast({
+            title: data.error || '图片上传失败',
+            icon: 'none'
+          });
+        },
+        fail: () => {
+          this.setData({ uploadingReplyImage: false });
+          wx.showToast({
+            title: '图片上传失败',
+            icon: 'none'
+          });
+        }
+      });
+    };
+
+    uploadNext(0);
+  },
+
+  removeReplyImage(e) {
+    const index = e.currentTarget.dataset.index;
+    const nextImages = [...this.data.replyImages];
+    nextImages.splice(index, 1);
+    this.setData({ replyImages: nextImages });
+  },
+
+  previewReplyImage(e) {
+    const url = e.currentTarget.dataset.url;
+    wx.previewImage({
+      current: url,
+      urls: this.data.replyImages
+    });
+  },
+
+  toggleStar(e) {
+    const qid = e.currentTarget.dataset.id;
+    this.requestToggleStar(qid);
+  },
+
+  toggleCurrentQuestionStar() {
+    if (!this.data.currentQuestion.id) {
+      return;
+    }
+    this.requestToggleStar(this.data.currentQuestion.id, true);
+  },
+
+  requestToggleStar(qid, fromDetail = false) {
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      return;
+    }
+
+    wx.request({
+      url: `${app.globalData.baseUrl}/questions/${qid}/star`,
+      method: 'POST',
+      header: {
+        'Authorization': token
+      },
+      success: (res) => {
+        if (res.statusCode !== 200 || !res.data.success) {
+          wx.showToast({ title: res.data?.error || '收藏失败', icon: 'none' });
+          return;
+        }
+
+        const questions = this.data.questions.map((item) => item.id === qid ? {
+          ...item,
+          stars: res.data.stars,
+          starred: res.data.starred
+        } : item);
+        this.setData({ questions });
+
+        if (fromDetail || (this.data.currentQuestion && this.data.currentQuestion.id === qid)) {
+          this.setData({
+            currentQuestion: {
+              ...this.data.currentQuestion,
+              stars: res.data.stars,
+              starred: res.data.starred
+            }
+          });
+        }
+      },
+      fail: () => {
+        wx.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
+      }
+    });
+  },
+
   submitReply() {
-    if (!this.data.replyContent.trim()) {
-      wx.showToast({ title: '请输入内容', icon: 'none' });
+    if (!this.data.replyContent.trim() && this.data.replyImages.length === 0) {
+      wx.showToast({ title: '请输入内容或上传图片', icon: 'none' });
       return;
     }
     
@@ -149,15 +305,17 @@ Page({
         'Authorization': wx.getStorageSync('token')
       },
       data: {
-        content: this.data.replyContent
+        content: this.data.replyContent.trim(),
+        images: this.data.replyImages
       },
       success: (res) => {
         wx.hideLoading();
         if (res.statusCode === 200) {
           wx.showToast({ title: '回复成功', icon: 'success' });
-          this.setData({ replyContent: '' });
+          this.setData({ replyContent: '', replyImages: [] });
           // 刷新详情
           this.fetchQuestionDetail(qid);
+          this.loadQuestions();
         } else {
             wx.showToast({ title: '回复失败', icon: 'none' });
         }

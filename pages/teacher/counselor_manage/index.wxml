@@ -1,0 +1,48 @@
+<view class="container">
+  <scroll-view scroll-x class="profile-tabs">
+    <view class="profile-tab {{currentIndex === index ? 'active' : ''}}" wx:for="{{profiles}}" wx:key="id" data-index="{{index}}" bindtap="switchProfile">
+      {{item.nickName}}{{item.kind === 'invite' ? '·待激活' : ''}}
+    </view>
+  </scroll-view>
+
+  <button class="add-btn" bindtap="createTeacherInvite">新增教师</button>
+
+  <view wx:if="{{editor.id}}" class="editor-card">
+    <view class="avatar-area">
+      <image wx:if="{{editor.avatarUrl}}" class="avatar" src="{{editor.avatarUrl}}" mode="aspectFill"></image>
+      <view wx:else class="avatar placeholder">{{editor.nickName ? editor.nickName.slice(0, 1) : '教'}}</view>
+      <button class="pick-avatar-btn" bindtap="chooseAvatar">{{uploading ? '上传中...' : '更换照片'}}</button>
+    </view>
+
+    <view class="form-group">
+      <view class="label">展示名字</view>
+      <input class="input" value="{{editor.nickName}}" placeholder="请输入名字" bindinput="onNameInput" />
+    </view>
+
+    <view class="form-group">
+      <view class="label">简介</view>
+      <textarea class="textarea" value="{{editor.desc}}" maxlength="120" placeholder="请输入简介" bindinput="onDescInput"></textarea>
+    </view>
+
+    <view class="switch-row">
+      <view>
+        <view class="label">在投递页显示</view>
+        <view class="hint">关闭后，该对象不会在投递对象列表显示。</view>
+      </view>
+      <switch checked="{{editor.isActive}}" bindchange="onActiveChange" color="#66BB6A"></switch>
+    </view>
+
+    <view wx:if="{{editor.kind === 'invite'}}" class="invite-box">
+      <view class="label">教师邀请码</view>
+      <view class="invite-code-row">
+        <text class="invite-code">{{editor.inviteCode || '保存后自动生成'}}</text>
+        <button class="copy-btn" bindtap="copyInviteCode" disabled="{{!editor.inviteCode}}">复制</button>
+      </view>
+      <view class="hint">把邀请码发给教师本人，对方登录小程序后在“教师身份激活”里输入即可完成绑定。</view>
+    </view>
+
+    <button class="save-btn" bindtap="saveProfile" disabled="{{saving}}">{{saving ? '保存中...' : (creating ? '创建教师邀请码' : '保存设置')}}</button>
+  </view>
+
+  <view wx:else class="empty-state">暂无可管理的教师账号</view>
+</view>
