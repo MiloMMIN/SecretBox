@@ -69,9 +69,9 @@ Page({
   },
 
   selectCounselor: function(e) {
-    const { id, name } = e.currentTarget.dataset;
+    const { id, name, avatar, avatarText } = e.currentTarget.dataset;
     wx.navigateTo({
-      url: `/pages/post/create?counselorId=${id}&counselorName=${name}`
+      url: `/pages/post/create?counselorId=${id}&counselorName=${encodeURIComponent(name || '')}&counselorAvatar=${encodeURIComponent(avatar || '')}&counselorAvatarText=${encodeURIComponent(avatarText || '')}`
     });
   }
 })

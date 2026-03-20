@@ -59,7 +59,7 @@ Page({
 
         if (res.statusCode === 200 && res.data.success) {
           wx.showToast({
-            title: '发布成功',
+            title: res.data.reviewStatus === 'pending' ? '已提交审核' : '发布成功',
             icon: 'success'
           });
 

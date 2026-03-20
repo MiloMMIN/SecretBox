@@ -15,6 +15,169 @@
   margin: 0 6rpx;
 }
 
+.conversation-loading {
+  padding: 0 40rpx 20rpx;
+  font-size: 24rpx;
+  color: var(--text-secondary);
+}
+
+.history-entry {
+  margin-bottom: 24rpx;
+  padding: 28rpx 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.history-entry-main {
+  flex: 1;
+}
+
+.history-entry-title {
+  font-size: 30rpx;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.history-entry-desc {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.history-entry-btn {
+  min-width: 120rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+  color: white;
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conversation-dialog {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-header {
+  padding: 28rpx 30rpx 16rpx;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dialog-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.dialog-close {
+  font-size: 42rpx;
+  color: #90A4AE;
+  padding: 4rpx 8rpx;
+}
+
+.dialog-scroll {
+  flex: 1;
+  padding: 24rpx 24rpx 40rpx;
+}
+
+.dialog-message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+  margin-bottom: 22rpx;
+}
+
+.dialog-message-row.mine {
+  flex-direction: row-reverse;
+}
+
+.dialog-avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+}
+
+.dialog-bubble-wrap {
+  max-width: calc(100% - 78rpx);
+}
+
+.dialog-bubble-wrap.mine {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.dialog-bubble-wrap.theirs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.dialog-meta {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+  font-size: 22rpx;
+  color: var(--text-placeholder);
+}
+
+.dialog-bubble {
+  padding: 18rpx 22rpx;
+  border-radius: 24rpx;
+  box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.04);
+}
+
+.dialog-bubble.mine {
+  background: linear-gradient(135deg, #E8F5E9, #F4FBF4);
+  border-bottom-right-radius: 8rpx;
+}
+
+.dialog-bubble.theirs {
+  background: white;
+  border-bottom-left-radius: 8rpx;
+}
+
+.dialog-content {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: var(--text-main);
+  white-space: pre-wrap;
+}
+
+.dialog-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.dialog-image {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 16rpx;
+}
+
 .form-card {
   padding: 40rpx;
   min-height: 400rpx;
@@ -26,12 +189,20 @@
   background-position: 0 20rpx; /* 对齐线条 */
 }
 
+.form-card.compact {
+  min-height: 260rpx;
+}
+
 .content-input {
   width: 100%;
   height: 320rpx;
   font-size: 32rpx;
   line-height: 60rpx; /* 匹配信纸行高 */
   color: var(--text-main);
+}
+
+.content-input.compact {
+  height: 180rpx;
 }
 
 .word-count {

@@ -8,3 +8,6 @@ project.private.config.json
 .vscode/
 dist/
 unpackage/
+server/config.env
+server/__pycache__/
+server/**/*.pyc

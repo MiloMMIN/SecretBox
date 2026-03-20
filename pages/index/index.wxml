@@ -25,6 +25,24 @@
     <view class="tab-item {{currentSort === 'discuss' ? 'active' : ''}}" bindtap="changeSort" data-type="discuss">讨论 💬</view>
   </view>
 
+  <view wx:if="{{mySquareSubmissions.length > 0}}" class="submission-section">
+    <view class="submission-title">我的投稿进度</view>
+    <view
+      class="card submission-card"
+      wx:for="{{mySquareSubmissions}}"
+      wx:key="id"
+      bindtap="goToDetail"
+      data-id="{{item.id}}"
+    >
+      <view class="submission-top">
+        <view class="submission-status {{item.submissionStatusClass}}">{{item.submissionStatusText}}</view>
+        <view class="submission-time">{{item.time}}</view>
+      </view>
+      <view class="submission-content">{{item.content}}</view>
+      <view class="submission-detail">{{item.submissionDetailText}}</view>
+    </view>
+  </view>
+
   <!-- 问题列表 -->
   <view class="question-list">
     <block wx:for="{{questions}}" wx:key="id">
@@ -54,8 +72,15 @@
     </block>
     
     <!-- 空状态 -->
-    <view wx:if="{{questions.length === 0}}" class="empty-state">
+    <view wx:if="{{loadingQuestions && questions.length === 0}}" class="empty-state">
+      <text>加载中...</text>
+    </view>
+    <view wx:elif="{{questions.length === 0}}" class="empty-state">
       <text>还没有公开提问哦，快去投递吧~</text>
+    </view>
+    <view wx:if="{{questions.length > 0}}" class="list-status">
+      <text wx:if="{{loadingQuestions}}">加载更多中...</text>
+      <text wx:elif="{{!hasMore}}">已经到底了</text>
     </view>
   </view>
   
@@ -64,12 +89,13 @@
     <view class="login-card">
       <view class="login-title">欢迎来到智心树洞</view>
       <view class="login-desc">为了提供更好的服务，我们需要获取您的头像和昵称。</view>
-      <button class="avatar-wrapper" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
+        <button class="avatar-wrapper" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar" disabled="{{loginSubmitting}}">
         <image wx:if="{{userInfo.avatarUrl}}" class="avatar" src="{{userInfo.avatarUrl}}"></image>
         <view wx:else class="avatar placeholder-avatar">{{userInfo.nickName ? userInfo.nickName.slice(0, 1) : '微'}}</view>
       </button> 
+        <view wx:if="{{loginSubmitting}}" class="login-uploading-tip">正在登录并上传头像，请稍候...</view>
       <input type="nickname" class="nickname-input" placeholder="请输入昵称" bind:change="onNicknameChange"/>
-      <button class="login-btn" bindtap="confirmLogin">授权登录</button>
+        <button class="login-btn" bindtap="confirmLogin" disabled="{{loginSubmitting}}">{{loginSubmitting ? '处理中...' : '授权登录'}}</button>
     </view>
   </view>
 
@@ -82,7 +108,7 @@
     custom-style="height: 85%; background-color: #F5F7F5;"
     bind:leave="onDetailClose"
   >
-    <view class="detail-container">
+    <view class="detail-container" wx:if="{{showDetail && currentQuestion}}">
       <view class="detail-header">
         <text class="detail-title">问题详情</text>
         <view class="close-btn" bindtap="onDetailClose">×</view>
@@ -96,6 +122,10 @@
             <view class="q-stats">
               <text class="detail-star {{currentQuestion.starred ? 'active' : ''}}" bindtap="toggleCurrentQuestionStar">⭐ {{currentQuestion.stars}}</text>
             </view>
+          </view>
+          <view wx:if="{{currentQuestion.showSquareSubmissionStatus}}" class="detail-review-tip {{currentQuestion.submissionStatusClass}}">
+            <text class="detail-review-status">{{currentQuestion.submissionStatusText}}</text>
+            <text>{{currentQuestion.submissionDetailText}}</text>
           </view>
         </view>
 
@@ -112,7 +142,7 @@
               </view>
               <view class="reply-content">{{item.content}}</view>
               <view wx:if="{{item.images && item.images.length}}" class="reply-images">
-                <image wx:for="{{item.images}}" wx:key="*this" class="reply-image" src="{{item}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{item}}"></image>
+                <image wx:for="{{item.images}}" wx:for-item="imageUrl" wx:key="*this" class="reply-image" src="{{imageUrl}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{imageUrl}}" data-urls="{{item.images}}"></image>
               </view>
             </view>
           </block>

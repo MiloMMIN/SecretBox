@@ -7,8 +7,9 @@ import urllib.parse
 import csv
 import io
 import uuid
-from datetime import datetime
-from sqlalchemy import UniqueConstraint, or_
+from datetime import datetime, timedelta
+from sqlalchemy import UniqueConstraint, func, or_
+from sqlalchemy.orm import joinedload, selectinload
 from werkzeug.utils import secure_filename
 from urllib.parse import urlparse
 
@@ -28,6 +29,10 @@ class Config:
         SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'mysql+pymysql://root:password@db/treehole_db')
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 1800,
+    }
 
     # Redis 配置
     # 优先读取环境变量 REDIS_URL，否则使用默认值
@@ -60,6 +65,20 @@ WX_APP_ID = app.config.get('WX_APP_ID')
 WX_APP_SECRET = app.config.get('WX_APP_SECRET')
 TEACHER_OPENIDS = set(app.config.get('TEACHER_OPENIDS', []))
 TEACHER_INVITE_CODE = app.config.get('TEACHER_INVITE_CODE', '')
+WECHAT_ACCESS_TOKEN_CACHE = {
+    'token': None,
+    'expires_at': None
+}
+DEFAULT_QUESTION_PAGE_SIZE = 20
+MAX_QUESTION_PAGE_SIZE = 50
+
+
+def parse_positive_int(value, default):
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else default
+    except (TypeError, ValueError):
+        return default
 
 
 def is_placeholder_wechat_value(value):
@@ -74,6 +93,91 @@ def is_placeholder_wechat_value(value):
         'your_app_secret_here',
     }
     return normalized in placeholder_values or normalized.startswith('your_')
+
+
+def is_wechat_configured():
+    return not is_placeholder_wechat_value(WX_APP_ID) and not is_placeholder_wechat_value(WX_APP_SECRET)
+
+
+def get_wechat_access_token():
+    cached_token = WECHAT_ACCESS_TOKEN_CACHE.get('token')
+    expires_at = WECHAT_ACCESS_TOKEN_CACHE.get('expires_at')
+    if cached_token and expires_at and datetime.utcnow() < expires_at:
+        return cached_token
+
+    url = (
+        'https://api.weixin.qq.com/cgi-bin/token'
+        f'?grant_type=client_credential&appid={WX_APP_ID}&secret={WX_APP_SECRET}'
+    )
+    response = requests.get(url, timeout=5)
+    data = response.json()
+    if data.get('errcode'):
+        raise ValueError(data.get('errmsg') or '获取微信 access_token 失败')
+
+    access_token = data.get('access_token')
+    expires_in = int(data.get('expires_in') or 7200)
+    if not access_token:
+        raise ValueError('微信 access_token 缺失')
+
+    WECHAT_ACCESS_TOKEN_CACHE['token'] = access_token
+    WECHAT_ACCESS_TOKEN_CACHE['expires_at'] = datetime.utcnow() + timedelta(seconds=max(expires_in - 300, 60))
+    return access_token
+
+
+def run_wechat_text_security_check(content, openid=''):
+    access_token = get_wechat_access_token()
+    url = f'https://api.weixin.qq.com/wxa/msg_sec_check?access_token={access_token}'
+    payload = {
+        'content': content,
+        'version': 2,
+        'scene': 2
+    }
+    if openid:
+        payload['openid'] = openid
+
+    response = requests.post(url, json=payload, timeout=5)
+    data = response.json()
+
+    if data.get('errcode') == 0:
+        result = data.get('result') or {}
+        suggest = result.get('suggest', 'pass')
+        if suggest in {'risky', 'review'}:
+            return {
+                'ok': False,
+                'message': '内容包含敏感信息，请修改后重试',
+                'reason': suggest,
+                'raw': data
+            }
+
+        return {
+            'ok': True,
+            'reason': 'pass',
+            'raw': data
+        }
+
+    if data.get('errcode') == 87014:
+        return {
+            'ok': False,
+            'message': '内容包含敏感信息，请修改后重试',
+            'reason': 'risky',
+            'raw': data
+        }
+
+    raise ValueError(data.get('errmsg') or '微信内容安全校验失败')
+
+
+def audit_text_content(content, openid=''):
+    if not content:
+        return {'ok': True}
+
+    if not is_wechat_configured():
+        return {'ok': True, 'skipped': True, 'reason': 'wechat_not_configured'}
+
+    try:
+        return run_wechat_text_security_check(content, openid)
+    except Exception as exc:
+        print(f'Warning: WeChat content security check skipped due to error: {exc}')
+        return {'ok': True, 'skipped': True, 'reason': 'wechat_check_failed'}
 
 db = SQLAlchemy(app)
 
@@ -145,6 +249,22 @@ def build_file_url(filename):
     return f"{request.host_url.rstrip('/')}/uploads/{filename}"
 
 
+def sanitize_avatar_url(file_url):
+    if not file_url:
+        return ''
+
+    normalized = file_url.strip()
+    lowered = normalized.lower()
+    if lowered.startswith('wxfile://') or lowered.startswith('http://tmp/') or lowered.startswith('https://tmp/'):
+        return ''
+
+    parsed = urlparse(normalized)
+    if parsed.scheme in {'http', 'https'}:
+        return normalized[:256]
+
+    return ''
+
+
 def remove_uploaded_file_by_url(file_url):
     if not file_url:
         return
@@ -197,6 +317,87 @@ def build_reply_preview(reply):
     return None
 
 
+def get_teacher_replied_question_ids(question_ids):
+    if not question_ids:
+        return set()
+
+    rows = get_teacher_replied_question_id_query().filter(
+        Reply.question_id.in_(question_ids)
+    ).all()
+    return {question_id for (question_id,) in rows}
+
+
+def get_teacher_replied_question_id_query():
+    return db.session.query(Reply.question_id).join(
+        User, Reply.user_id == User.id
+    ).filter(
+        User.role == 'teacher'
+    ).distinct()
+
+
+def build_question_summary_map(question_ids, current_user_id=None):
+    summary_map = {
+        question_id: {
+            'comments': 0,
+            'latestReplyPreview': None,
+            'teacherReply': None,
+            'hasTeacherReply': False,
+            'starred': False
+        }
+        for question_id in question_ids
+    }
+    if not question_ids:
+        return summary_map
+
+    reply_count_rows = db.session.query(
+        Reply.question_id,
+        func.count(Reply.id)
+    ).filter(
+        Reply.question_id.in_(question_ids)
+    ).group_by(
+        Reply.question_id
+    ).all()
+    for question_id, reply_count in reply_count_rows:
+        summary_map[question_id]['comments'] = reply_count
+
+    replies = Reply.query.options(
+        joinedload(Reply.user),
+        selectinload(Reply.images)
+    ).filter(
+        Reply.question_id.in_(question_ids)
+    ).order_by(
+        Reply.question_id.asc(),
+        Reply.created_at.desc()
+    ).all()
+
+    latest_seen = set()
+    latest_teacher_seen = set()
+    for reply in replies:
+        summary = summary_map.get(reply.question_id)
+        if not summary:
+            continue
+
+        if reply.question_id not in latest_seen:
+            summary['latestReplyPreview'] = build_reply_preview(reply)
+            latest_seen.add(reply.question_id)
+
+        if reply.user and reply.user.role == 'teacher' and reply.question_id not in latest_teacher_seen:
+            summary['teacherReply'] = reply.content
+            summary['hasTeacherReply'] = True
+            latest_teacher_seen.add(reply.question_id)
+
+    if current_user_id:
+        starred_rows = db.session.query(Star.question_id).filter(
+            Star.user_id == current_user_id,
+            Star.question_id.in_(question_ids)
+        ).all()
+        starred_question_ids = {question_id for (question_id,) in starred_rows}
+        for question_id in starred_question_ids:
+            summary_map[question_id]['starred'] = True
+
+    return summary_map
+
+
 def serialize_reply(reply):
     return {
         'id': reply.id,
@@ -223,7 +424,10 @@ def get_latest_reply(question_id):
 
 
 def can_view_question(user, question):
-    if question.is_public:
+    if question.audit_status != 'passed':
+        return bool(user and question.user_id == user.id)
+
+    if question.is_public and question.review_status == 'approved':
         return True
 
     if not user:
@@ -232,7 +436,95 @@ def can_view_question(user, question):
     if question.user_id == user.id:
         return True
 
-    return user.role == 'teacher' and (question.counselor_id == user.id or question.counselor_id == 0)
+    if user.role != 'teacher':
+        return False
+
+    if question.is_public:
+        return True
+
+    return question.counselor_id == user.id or question.counselor_id == 0
+
+
+def get_question_review_label(review_status):
+    labels = {
+        'pending': '审核中',
+        'approved': '已通过',
+        'rejected': '未通过'
+    }
+    return labels.get(review_status, '审核中')
+
+
+def serialize_question_review(question):
+    return {
+        'reviewStatus': question.review_status,
+        'reviewStatusText': get_question_review_label(question.review_status),
+        'auditStatus': question.audit_status,
+        'reviewReason': question.review_reason
+    }
+
+
+def needs_teacher_review(question):
+    return question.is_public and question.review_status == 'pending'
+
+
+def is_teacher_reply_actionable(question, teacher_replied_question_ids=None):
+    if teacher_replied_question_ids is None:
+        has_teacher_reply = get_latest_teacher_reply(question.id) is not None
+    else:
+        has_teacher_reply = question.id in teacher_replied_question_ids
+
+    return not needs_teacher_review(question) and not has_teacher_reply
+
+
+def build_teacher_visible_question_query(user, eager=False):
+    query = Question.query
+    if eager:
+        query = query.options(joinedload(Question.user))
+
+    return query.filter(
+        Question.audit_status == 'passed',
+        or_(
+            Question.is_public.is_(True),
+            Question.counselor_id == user.id,
+            Question.counselor_id == 0
+        )
+    )
+
+
+def apply_teacher_question_scope(query, user, scope, review_status='all', today_start=None):
+    today_start = today_start or datetime.combine(datetime.now().date(), datetime.min.time())
+    teacher_replied_query = get_teacher_replied_question_id_query()
+
+    if scope == 'pending':
+        query = query.filter(
+            or_(
+                Question.is_public.is_(False),
+                Question.review_status == 'approved'
+            )
+        ).filter(
+            ~Question.id.in_(teacher_replied_query)
+        )
+    elif scope == 'today':
+        query = query.filter(
+            Question.created_at >= today_start
+        ).filter(
+            or_(
+                Question.is_public.is_(False),
+                Question.review_status == 'approved'
+            )
+        )
+    elif scope == 'inbox':
+        query = query.filter(
+            Question.counselor_id == user.id,
+            Question.is_public.is_(False)
+        )
+    elif scope == 'square':
+        query = query.filter(Question.is_public.is_(True))
+
+    if scope == 'square' and review_status in {'pending', 'approved', 'rejected'}:
+        query = query.filter(Question.review_status == review_status)
+
+    return query
 
 
 def ensure_teacher_user():
@@ -245,15 +537,10 @@ def ensure_teacher_user():
 
 
 def get_teacher_visible_questions(user):
-    return Question.query.filter(
-        or_(Question.is_public.is_(True), Question.counselor_id == user.id, Question.counselor_id == 0)
-    ).order_by(Question.created_at.desc()).all()
+    return build_teacher_visible_question_query(user, eager=True).order_by(Question.created_at.desc()).all()
 
 
-def serialize_teacher_question(question):
-    latest_reply = get_latest_reply(question.id)
-    latest_teacher_reply = get_latest_teacher_reply(question.id)
-
+def serialize_teacher_question(question, summary=None):
     student = None
     if not question.is_anonymous and (question.student_name or question.student_class):
         student = {
@@ -261,16 +548,21 @@ def serialize_teacher_question(question):
             'className': question.student_class
         }
 
+    summary = summary or build_question_summary_map([question.id]).get(question.id, {})
+
     return {
         'id': question.id,
         'content': question.content,
         'time': question.created_at.strftime('%Y-%m-%d %H:%M'),
         'isPublic': question.is_public,
         'isAnonymous': question.is_anonymous,
+        'reviewStatus': question.review_status,
+        'reviewStatusText': get_question_review_label(question.review_status),
+        'reviewReason': question.review_reason,
         'stars': question.stars,
-        'comments': Reply.query.filter_by(question_id=question.id).count(),
-        'hasTeacherReply': latest_teacher_reply is not None,
-        'latestReplyPreview': build_reply_preview(latest_reply),
+        'comments': summary.get('comments', 0),
+        'hasTeacherReply': summary.get('hasTeacherReply', False),
+        'latestReplyPreview': summary.get('latestReplyPreview'),
         'student': student,
         'author': get_question_author_payload(question)
     }
@@ -291,6 +583,10 @@ class Question(db.Model):
     counselor_id = db.Column(db.Integer) # 0 for Starry Hole
     is_anonymous = db.Column(db.Boolean, default=False)
     is_public = db.Column(db.Boolean, default=False)
+    review_status = db.Column(db.String(20), default='approved', nullable=False)
+    review_reason = db.Column(db.String(255))
+    audit_status = db.Column(db.String(20), default='passed', nullable=False)
+    audit_checked_at = db.Column(db.DateTime)
     student_class = db.Column(db.String(64))
     student_name = db.Column(db.String(64))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -357,6 +653,48 @@ class TeacherInvite(db.Model):
 # with app.app_context():
 #    db.create_all()
 
+
+@celery.task(bind=True, name='tasks.audit_public_question')
+def audit_public_question(self, question_id):
+    with app.app_context():
+        question = Question.query.options(joinedload(Question.user)).filter_by(id=question_id).first()
+        if not question or not question.is_public:
+            return {'status': 'skipped'}
+
+        if question.audit_status == 'passed':
+            return {'status': 'passed'}
+
+        if not question.content or not is_wechat_configured():
+            question.audit_status = 'passed'
+            question.audit_checked_at = datetime.utcnow()
+            db.session.commit()
+            return {'status': 'passed'}
+
+        try:
+            audit_result = run_wechat_text_security_check(question.content, question.user.openid if question.user else '')
+        except Exception as exc:
+            if self.request.retries >= 3:
+                question.audit_status = 'failed'
+                question.audit_checked_at = datetime.utcnow()
+                question.review_reason = '系统审核暂时异常，请稍后查看结果'
+                db.session.commit()
+                raise
+
+            raise self.retry(exc=exc, countdown=min(30 * (self.request.retries + 1), 180))
+
+        question.audit_checked_at = datetime.utcnow()
+        if audit_result.get('ok'):
+            question.audit_status = 'passed'
+            question.review_reason = None
+        else:
+            question.audit_status = 'rejected'
+            question.review_status = 'rejected'
+            question.review_reason = '未通过系统内容审核'
+
+        db.session.commit()
+        return {'status': question.audit_status}
+
+
 # --- API ---
 
 @app.route('/')
@@ -382,6 +720,14 @@ def upload_image():
     ext = os.path.splitext(secure_filename(image_file.filename))[1].lower()
     if ext not in {'.jpg', '.jpeg', '.png', '.gif', '.webp'}:
         return jsonify({'error': 'Unsupported file type'}), 400
+
+    purpose = (request.args.get('purpose') or '').strip().lower()
+    if purpose == 'avatar':
+        image_file.stream.seek(0, os.SEEK_END)
+        file_size = image_file.stream.tell()
+        image_file.stream.seek(0)
+        if file_size > 512 * 1024:
+            return jsonify({'error': '头像图片请压缩到 512KB 以内'}), 400
 
     filename = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -426,7 +772,9 @@ def login():
     # 更新用户信息
     if userInfo:
         user.nickname = userInfo.get('nickName')
-        user.avatar_url = userInfo.get('avatarUrl')
+        avatar_url = sanitize_avatar_url(userInfo.get('avatarUrl'))
+        if avatar_url:
+            user.avatar_url = avatar_url
 
     db.session.flush()
     if user.role == 'teacher':
@@ -461,12 +809,15 @@ def update_me_profile():
 
     data = request.json or {}
     nickname = (data.get('nickName') or data.get('nickname') or '').strip()
-    avatar_url = (data.get('avatarUrl') or '').strip()
+    avatar_url = sanitize_avatar_url(data.get('avatarUrl'))
+    old_avatar_url = user.avatar_url
 
     if nickname:
         user.nickname = nickname[:64]
     if avatar_url:
         user.avatar_url = avatar_url[:256]
+        if old_avatar_url and old_avatar_url != user.avatar_url:
+            remove_uploaded_file_by_url(old_avatar_url)
 
     if user.role == 'teacher':
         profile = get_or_create_teacher_profile(user)
@@ -635,23 +986,19 @@ def get_teacher_dashboard():
         return error_response
 
     profile = get_or_create_teacher_profile(user)
-    visible_questions = get_teacher_visible_questions(user)
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
-
-    pending_questions = [q for q in visible_questions if not get_latest_teacher_reply(q.id)]
-    today_questions = [q for q in visible_questions if q.created_at >= today_start]
-    inbox_questions = [q for q in visible_questions if q.counselor_id == user.id and not q.is_public]
-    square_questions = [q for q in visible_questions if q.is_public]
-    unread_questions = visible_questions
+    base_query = build_teacher_visible_question_query(user)
+    unread_query = base_query
     if profile.last_checked_at:
-        unread_questions = [q for q in visible_questions if q.created_at > profile.last_checked_at]
+        unread_query = unread_query.filter(Question.created_at > profile.last_checked_at)
 
     return jsonify({
-        'pendingCount': len(pending_questions),
-        'todayCount': len(today_questions),
-        'inboxCount': len(inbox_questions),
-        'squareCount': len(square_questions),
-        'unreadCount': len(unread_questions)
+        'pendingCount': apply_teacher_question_scope(base_query, user, 'pending', today_start=today_start).count(),
+        'reviewPendingCount': apply_teacher_question_scope(base_query, user, 'square', review_status='pending', today_start=today_start).count(),
+        'todayCount': apply_teacher_question_scope(base_query, user, 'today', today_start=today_start).count(),
+        'inboxCount': apply_teacher_question_scope(base_query, user, 'inbox', today_start=today_start).count(),
+        'squareCount': apply_teacher_question_scope(base_query, user, 'square', today_start=today_start).count(),
+        'unreadCount': unread_query.count()
     })
 
 
@@ -674,19 +1021,37 @@ def get_teacher_questions():
         return error_response
 
     scope = request.args.get('scope', 'pending')
-    questions = get_teacher_visible_questions(user)
+    review_status = request.args.get('reviewStatus', 'all')
+    page = parse_positive_int(request.args.get('page'), 1)
+    page_size = min(
+        parse_positive_int(request.args.get('pageSize'), DEFAULT_QUESTION_PAGE_SIZE),
+        MAX_QUESTION_PAGE_SIZE
+    )
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
+    query = apply_teacher_question_scope(
+        build_teacher_visible_question_query(user, eager=True),
+        user,
+        scope,
+        review_status=review_status,
+        today_start=today_start
+    ).order_by(Question.created_at.desc(), Question.id.desc())
 
-    if scope == 'pending':
-        questions = [q for q in questions if not get_latest_teacher_reply(q.id)]
-    elif scope == 'today':
-        questions = [q for q in questions if q.created_at >= today_start]
-    elif scope == 'inbox':
-        questions = [q for q in questions if q.counselor_id == user.id and not q.is_public]
-    elif scope == 'square':
-        questions = [q for q in questions if q.is_public]
-
-    return jsonify([serialize_teacher_question(question) for question in questions])
+    offset = (page - 1) * page_size
+    paged_questions = query.offset(offset).limit(page_size + 1).all()
+    has_more = len(paged_questions) > page_size
+    questions = paged_questions[:page_size]
+    summary_map = build_question_summary_map([question.id for question in questions])
+    return jsonify({
+        'items': [
+            serialize_teacher_question(question, summary_map.get(question.id))
+            for question in questions
+        ],
+        'pagination': {
+            'page': page,
+            'pageSize': page_size,
+            'hasMore': has_more
+        }
+    })
 
 
 @app.route('/api/teacher/export', methods=['GET'])
@@ -696,24 +1061,23 @@ def export_teacher_questions():
         return error_response
 
     scope = request.args.get('scope', 'all')
-    questions = get_teacher_visible_questions(user)
+    review_status = request.args.get('reviewStatus', 'all')
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
-
-    if scope == 'pending':
-        questions = [q for q in questions if not get_latest_teacher_reply(q.id)]
-    elif scope == 'today':
-        questions = [q for q in questions if q.created_at >= today_start]
-    elif scope == 'inbox':
-        questions = [q for q in questions if q.counselor_id == user.id and not q.is_public]
-    elif scope == 'square':
-        questions = [q for q in questions if q.is_public]
+    questions = apply_teacher_question_scope(
+        build_teacher_visible_question_query(user, eager=True),
+        user,
+        scope,
+        review_status=review_status,
+        today_start=today_start
+    ).order_by(Question.created_at.desc(), Question.id.desc()).all()
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter='\t')
     writer.writerow(['ID', '类型', '提问时间', '内容', '学生班级', '学生姓名', '是否已被教师回复', '最新评论'])
+    summary_map = build_question_summary_map([question.id for question in questions])
 
     for question in questions:
-        latest_reply = get_latest_reply(question.id)
+        summary = summary_map.get(question.id, {})
         writer.writerow([
             question.id,
             '广场' if question.is_public else '私密',
@@ -721,8 +1085,8 @@ def export_teacher_questions():
             question.content,
             question.student_class or '',
             question.student_name or '',
-            '是' if get_latest_teacher_reply(question.id) else '否',
-            build_reply_preview(latest_reply) or ''
+            '是' if summary.get('hasTeacherReply') else '否',
+            summary.get('latestReplyPreview') or ''
         ])
 
     filename = f"secretbox-export-{scope}-{datetime.now().strftime('%Y%m%d%H%M%S')}.xls"
@@ -738,61 +1102,99 @@ def export_teacher_questions():
 def get_questions():
     search = request.args.get('search', '')
     sort = request.args.get('sort', 'time')
+    page = parse_positive_int(request.args.get('page'), 1)
+    page_size = min(
+        parse_positive_int(request.args.get('pageSize'), DEFAULT_QUESTION_PAGE_SIZE),
+        MAX_QUESTION_PAGE_SIZE
+    )
     user = get_authenticated_user()
     
-    query = Question.query.filter_by(is_public=True)
+    query = Question.query.options(
+        joinedload(Question.user)
+    ).filter_by(
+        is_public=True,
+        review_status='approved',
+        audit_status='passed'
+    )
     
     if search:
         query = query.filter(Question.content.contains(search))
         
     if sort == 'hot':
-        query = query.order_by(Question.stars.desc())
+        query = query.order_by(
+            Question.stars.desc(),
+            Question.created_at.desc(),
+            Question.id.desc()
+        )
     elif sort == 'discuss':
         # 简单实现，暂不支持按评论数排序，仍按时间
-        query = query.order_by(Question.created_at.desc())
+        query = query.order_by(
+            Question.created_at.desc(),
+            Question.id.desc()
+        )
     else:
-        query = query.order_by(Question.created_at.desc())
-        
-    questions = query.all()
+        query = query.order_by(
+            Question.created_at.desc(),
+            Question.id.desc()
+        )
+
+    offset = (page - 1) * page_size
+    paged_questions = query.offset(offset).limit(page_size + 1).all()
+    has_more = len(paged_questions) > page_size
+    questions = paged_questions[:page_size]
+    summary_map = build_question_summary_map(
+        [question.id for question in questions],
+        user.id if user else None
+    )
     
     result = []
     for q in questions:
-        latest_reply = get_latest_reply(q.id)
-        latest_teacher_reply = get_latest_teacher_reply(q.id)
-        reply_count = Reply.query.filter_by(question_id=q.id).count()
-        starred = False
-        if user:
-            starred = Star.query.filter_by(user_id=user.id, question_id=q.id).first() is not None
-        
+        summary = summary_map.get(q.id, {})
         result.append({
             'id': q.id,
             'content': q.content,
             'time': q.created_at.strftime('%Y-%m-%d %H:%M'),
             'stars': q.stars,
-            'comments': reply_count,
-            'reply': latest_teacher_reply.content if latest_teacher_reply else None,
-            'latestReplyPreview': build_reply_preview(latest_reply),
-            'hasTeacherReply': latest_teacher_reply is not None,
+            'comments': summary.get('comments', 0),
+            'reply': summary.get('teacherReply'),
+            'latestReplyPreview': summary.get('latestReplyPreview'),
+            'hasTeacherReply': summary.get('hasTeacherReply', False),
             'isPublic': q.is_public,
             'user': get_question_author_payload(q),
-            'starred': starred
+            'starred': summary.get('starred', False),
+            **serialize_question_review(q)
         })
-        
-    return jsonify(result)
+
+    return jsonify({
+        'items': result,
+        'pagination': {
+            'page': page,
+            'pageSize': page_size,
+            'hasMore': has_more
+        }
+    })
 
 # 获取问题详情及回复
 @app.route('/api/questions/<int:qid>', methods=['GET'])
 def get_question_detail(qid):
-    q = Question.query.get_or_404(qid)
+    q = Question.query.options(joinedload(Question.user)).filter_by(id=qid).first_or_404()
     user = get_authenticated_user()
     if not can_view_question(user, q):
         return jsonify({'error': 'Forbidden'}), 403
 
-    replies = Reply.query.filter_by(question_id=qid).order_by(Reply.created_at.asc()).all()
+    replies = Reply.query.options(
+        joinedload(Reply.user),
+        selectinload(Reply.images)
+    ).filter_by(
+        question_id=qid
+    ).order_by(
+        Reply.created_at.asc()
+    ).all()
     starred = False
     if user:
         starred = Star.query.filter_by(user_id=user.id, question_id=q.id).first() is not None
-        
+    summary = build_question_summary_map([q.id]).get(q.id, {})
+
     return jsonify({
         'id': q.id,
         'content': q.content,
@@ -801,7 +1203,8 @@ def get_question_detail(qid):
         'starred': starred,
         'isPublic': q.is_public,
         'user': get_question_author_payload(q),
-        'latestReplyPreview': build_reply_preview(get_latest_reply(q.id)),
+        'latestReplyPreview': summary.get('latestReplyPreview'),
+        **serialize_question_review(q),
         'replies': [serialize_reply(reply) for reply in replies]
     })
 
@@ -816,20 +1219,44 @@ def create_question():
     content = (data.get('content') or '').strip()
     if not content:
         return jsonify({'error': 'Missing content'}), 400
+
+    is_public = bool(data.get('isPublic', False))
+    audit_status = 'passed'
+    audit_checked_at = datetime.utcnow()
+    if is_public:
+        if is_wechat_configured():
+            audit_status = 'pending'
+            audit_checked_at = None
+    else:
+        audit_result = audit_text_content(content, user.openid)
+        if not audit_result.get('ok'):
+            return jsonify({'error': audit_result.get('message') or '内容审核未通过'}), 400
         
     q = Question(
         content=content,
         user_id=user.id,
         counselor_id=data.get('counselorId'),
         is_anonymous=data.get('isAnonymous', False),
-        is_public=data.get('isPublic', False),
+        is_public=is_public,
+        review_status='pending' if is_public else 'approved',
+        review_reason=None,
+        audit_status=audit_status,
+        audit_checked_at=audit_checked_at,
         student_class=data.get('studentClass'),
         student_name=data.get('studentName')
     )
     db.session.add(q)
     db.session.commit()
+
+    if is_public and q.audit_status == 'pending':
+        try:
+            audit_public_question.delay(q.id)
+        except Exception:
+            db.session.delete(q)
+            db.session.commit()
+            return jsonify({'error': '内容审核排队失败，请稍后重试'}), 503
     
-    return jsonify({'success': True, 'id': q.id})
+    return jsonify({'success': True, 'id': q.id, **serialize_question_review(q)})
 
 # 回复问题
 @app.route('/api/questions/<int:qid>/replies', methods=['POST'])
@@ -847,6 +1274,10 @@ def create_reply(qid):
     images = data.get('images') or []
     if not content and not images:
         return jsonify({'error': 'Missing reply content'}), 400
+
+    audit_result = audit_text_content(content, user.openid)
+    if not audit_result.get('ok'):
+        return jsonify({'error': audit_result.get('message') or '内容审核未通过'}), 400
         
     reply = Reply(
         question_id=qid,
@@ -872,6 +1303,11 @@ def toggle_star(qid):
         return jsonify({'error': 'Unauthorized'}), 401
 
     question = Question.query.get_or_404(qid)
+    if not can_view_question(user, question):
+        return jsonify({'error': 'Forbidden'}), 403
+    if not question.is_public or question.review_status != 'approved' or question.audit_status != 'passed':
+        return jsonify({'error': 'Only approved public questions can be starred'}), 400
+
     star = Star.query.filter_by(user_id=user.id, question_id=qid).first()
     if star:
         db.session.delete(star)
@@ -909,6 +1345,35 @@ def delete_teacher_question(qid):
     return jsonify({'success': True})
 
 
+@app.route('/api/teacher/questions/<int:qid>/review', methods=['POST'])
+def review_teacher_question(qid):
+    user, error_response = ensure_teacher_user()
+    if error_response:
+        return error_response
+
+    question = Question.query.get_or_404(qid)
+    if not question.is_public:
+        return jsonify({'error': 'Only public questions can be reviewed'}), 400
+    if question.audit_status != 'passed':
+        return jsonify({'error': 'Question is still under system review'}), 400
+
+    payload = request.json or {}
+    action = payload.get('action')
+    reason = (payload.get('reason') or '').strip()
+    if action not in {'approve', 'reject'}:
+        return jsonify({'error': 'Invalid review action'}), 400
+
+    if action == 'approve':
+        question.review_status = 'approved'
+        question.review_reason = None
+    else:
+        question.review_status = 'rejected'
+        question.review_reason = reason[:255] if reason else None
+
+    db.session.commit()
+    return jsonify({'success': True, **serialize_question_review(question)})
+
+
 @app.route('/api/teacher/replies/<int:reply_id>', methods=['DELETE'])
 def delete_teacher_reply(reply_id):
     user, error_response = ensure_teacher_user()
@@ -928,6 +1393,68 @@ def delete_teacher_reply(reply_id):
     db.session.commit()
     return jsonify({'success': True})
 
+
+@app.route('/api/my/conversations/<int:counselor_id>', methods=['GET'])
+def get_my_conversation(counselor_id):
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    questions = Question.query.options(
+        selectinload(Question.replies_list).joinedload(Reply.user),
+        selectinload(Question.replies_list).selectinload(Reply.images)
+    ).filter(
+        Question.user_id == user.id,
+        Question.is_public.is_(False),
+        Question.counselor_id == counselor_id
+    ).order_by(
+        Question.created_at.asc(),
+        Question.id.asc()
+    ).all()
+
+    items = []
+    for question in questions:
+        items.append({
+            'id': f'q-{question.id}',
+            'questionId': question.id,
+            'kind': 'question',
+            'senderRole': 'student',
+            'senderName': '我',
+            'senderAvatarUrl': '',
+            'isMine': True,
+            'content': question.content,
+            'images': [],
+            'time': question.created_at.strftime('%Y-%m-%d %H:%M')
+        })
+
+        replies = sorted(
+            question.replies_list,
+            key=lambda reply: (reply.created_at, reply.id)
+        )
+        for reply in replies:
+            items.append({
+                'id': f'r-{reply.id}',
+                'questionId': question.id,
+                'kind': 'reply',
+                'senderRole': reply.user.role if reply.user else 'teacher',
+                'senderName': (reply.user.nickname if reply.user and reply.user.nickname else '教师'),
+                'senderAvatarUrl': (reply.user.avatar_url if reply.user and reply.user.avatar_url else ''),
+                'isMine': reply.user_id == user.id,
+                'content': build_reply_preview(reply) or '',
+                'images': [image.image_url for image in reply.images],
+                'time': reply.created_at.strftime('%Y-%m-%d %H:%M')
+            })
+
+    latest_question = questions[-1] if questions else None
+    return jsonify({
+        'items': items,
+        'defaults': {
+            'isAnonymous': latest_question.is_anonymous if latest_question else False,
+            'studentClass': latest_question.student_class if latest_question and latest_question.student_class else '',
+            'studentName': latest_question.student_name if latest_question and latest_question.student_name else ''
+        }
+    })
+
 # 我的提问
 @app.route('/api/my/questions', methods=['GET'])
 def get_my_questions():
@@ -936,12 +1463,15 @@ def get_my_questions():
         return jsonify({'error': 'Unauthorized'}), 401
         
     questions = Question.query.filter_by(user_id=user.id).order_by(Question.created_at.desc()).all()
+    summary_map = build_question_summary_map([question.id for question in questions])
     return jsonify([{
         'id': q.id,
         'content': q.content,
         'time': q.created_at.strftime('%Y-%m-%d %H:%M'),
-        'reply': get_latest_teacher_reply(q.id).content if get_latest_teacher_reply(q.id) else None,
-        'hasTeacherReply': get_latest_teacher_reply(q.id) is not None
+        'reply': summary_map.get(q.id, {}).get('teacherReply'),
+        'hasTeacherReply': summary_map.get(q.id, {}).get('hasTeacherReply', False),
+        'isPublic': q.is_public,
+        **serialize_question_review(q)
     } for q in questions])
 
 # 我的回复

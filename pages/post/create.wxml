@@ -6,11 +6,21 @@
     <text> 投递</text>
   </view>
 
-  <view class="form-card card">
-    <textarea 
-      class="content-input" 
+  <view wx:if="{{conversationItems.length > 0 && !isPublic}}" class="history-entry card" bindtap="openConversationDialog">
+    <view class="history-entry-main">
+      <view class="history-entry-title">历史投递与回复</view>
+      <view class="history-entry-desc">已累计 {{conversationItems.length}} 条消息，点击查看完整对话</view>
+    </view>
+    <view class="history-entry-btn">查看</view>
+  </view>
+  <view wx:elif="{{loadingConversation && !isPublic}}" class="conversation-loading">正在加载树洞记录...</view>
+
+  <view class="form-card card {{conversationItems.length > 0 && !isPublic ? 'compact' : ''}}">
+    <textarea
+      class="content-input {{conversationItems.length > 0 && !isPublic ? 'compact' : ''}}"
       placeholder="请在这里写下你想说的话...（支持文字，暂不支持语音）" 
       maxlength="500"
+      value="{{content}}"
       bindinput="onContentInput"
     ></textarea>
     <view class="word-count">{{content.length}}/500</view>
@@ -40,7 +50,7 @@
     <view class="option-item">
       <view class="option-label">
         <text>公开到广场</text>
-        <text class="option-desc">开启后，问题将显示在首页广场</text>
+        <text class="option-desc">开启后，问题会先进入老师审核，通过后才显示在首页广场</text>
       </view>
       <switch color="#66BB6A" checked="{{isPublic}}" bindchange="onPublicChange"/>
     </view>
@@ -53,4 +63,58 @@
   <view class="tips">
     <text>温馨提示：\n1. 即使匿名，教师在后台仍可见您的真实身份，这是为了在紧急情况下（如涉及生命安全）能及时提供帮助。\n2. 请理性发言，文明表达。</text>
   </view>
+
+  <page-container
+    show="{{showConversationDialog}}"
+    round="{{true}}"
+    overlay="{{true}}"
+    position="bottom"
+    custom-style="height: 76%; background-color: #F5F7F5;"
+    bind:leave="closeConversationDialog"
+  >
+    <view class="conversation-dialog" wx:if="{{showConversationDialog}}">
+      <view class="dialog-header">
+        <text class="dialog-title">历史对话</text>
+        <view class="dialog-close" bindtap="closeConversationDialog">×</view>
+      </view>
+      <scroll-view scroll-y class="dialog-scroll" scroll-into-view="{{conversationAnchorId}}">
+        <block wx:for="{{conversationItems}}" wx:key="id">
+          <view id="{{item.domId}}" class="dialog-message-row {{item.isMine ? 'mine' : 'theirs'}}">
+            <image
+              wx:if="{{item.isMine ? userAvatar : (item.senderAvatarUrl || counselorAvatar)}}"
+              class="dialog-avatar"
+              src="{{item.isMine ? userAvatar : (item.senderAvatarUrl || counselorAvatar)}}"
+              mode="aspectFill"
+            ></image>
+            <view
+              wx:else
+              class="dialog-avatar avatar-fallback {{item.isMine ? 'mine' : 'theirs'}}"
+            >{{item.isMine ? userAvatarText : counselorAvatarText}}</view>
+            <view class="dialog-bubble-wrap {{item.isMine ? 'mine' : 'theirs'}}">
+              <view class="dialog-meta {{item.isMine ? 'mine' : 'theirs'}}">
+                <text>{{item.isMine ? '我' : item.senderName}}</text>
+                <text>{{item.time}}</text>
+              </view>
+              <view class="dialog-bubble {{item.isMine ? 'mine' : 'theirs'}}">
+                <view wx:if="{{item.content}}" class="dialog-content">{{item.content}}</view>
+                <view wx:if="{{item.images && item.images.length}}" class="dialog-images">
+                  <image
+                    wx:for="{{item.images}}"
+                    wx:for-item="imageUrl"
+                    wx:key="*this"
+                    class="dialog-image"
+                    src="{{imageUrl}}"
+                    mode="aspectFill"
+                    bindtap="previewConversationImage"
+                    data-url="{{imageUrl}}"
+                    data-urls="{{item.images}}"
+                  ></image>
+                </view>
+              </view>
+            </view>
+          </view>
+        </block>
+      </scroll-view>
+    </view>
+  </page-container>
 </view>

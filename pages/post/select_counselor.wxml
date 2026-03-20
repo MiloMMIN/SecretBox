@@ -7,7 +7,7 @@
 
   <view class="counselor-list">
     <block wx:for="{{counselors}}" wx:key="id">
-      <view class="card counselor-card" bindtap="selectCounselor" data-id="{{item.id}}" data-name="{{item.name}}">
+      <view class="card counselor-card" bindtap="selectCounselor" data-id="{{item.id}}" data-name="{{item.name}}" data-avatar="{{item.avatar}}" data-avatar-text="{{item.avatarText}}">
         <view class="counselor-info">
           <image wx:if="{{item.avatar}}" class="avatar" src="{{item.avatar}}" mode="aspectFill"></image>
           <view wx:else class="avatar avatar-placeholder">{{item.avatarText}}</view>

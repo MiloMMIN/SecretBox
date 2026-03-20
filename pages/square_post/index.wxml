@@ -23,6 +23,7 @@
       </view>
       <switch color="#66BB6A" checked="{{isAnonymous}}" bindchange="onAnonymousChange"/>
     </view>
+    <view class="review-tip">广场内容需要老师人工审核，通过后才会在首页展示。</view>
   </view>
 
   <button class="submit-btn" bindtap="submitPost" disabled="{{loading}}">

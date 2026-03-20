@@ -103,6 +103,12 @@
   align-self: flex-start;
 }
 
+.avatar-uploading-tip {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #78909C;
+}
+
 .menu-list {
   padding: 0 40rpx;
   margin-bottom: 30rpx;
@@ -125,6 +131,12 @@
 
 .menu-item:last-child {
   border-bottom: none;
+}
+
+.menu-right {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
 }
 
 .arrow {
@@ -208,6 +220,22 @@
 .sub-status.pending {
   background-color: #FFF3E0;
   color: #FF9800;
+}
+
+.sub-status.approved {
+  background-color: #E8F5E9;
+  color: #43A047;
+}
+
+.sub-status.rejected {
+  background-color: #FFEBEE;
+  color: #D32F2F;
+}
+
+.sub-detail {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #90A4AE;
 }
 
 .empty-sub {
@@ -323,6 +351,214 @@
   background: #F5F7F5;
   border-radius: 14rpx;
   padding: 14rpx 18rpx;
+}
+
+.teacher-question-action {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #2E7D32;
+}
+
+.teacher-load-more {
+  margin-top: 20rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #2E7D32;
+  padding: 18rpx 0 6rpx;
+}
+
+.teacher-load-more.muted {
+  color: #90A4AE;
+}
+
+.detail-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-header {
+  padding: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+}
+
+.detail-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.close-btn {
+  font-size: 42rpx;
+  color: #90A4AE;
+}
+
+.detail-scroll {
+  flex: 1;
+  padding: 24rpx;
+}
+
+.detail-card,
+.detail-reply-item {
+  margin-bottom: 20rpx;
+}
+
+.detail-content {
+  font-size: 32rpx;
+  line-height: 1.7;
+  color: var(--text-main);
+}
+
+.detail-info {
+  margin-top: 20rpx;
+  display: flex;
+  justify-content: space-between;
+  color: #90A4AE;
+  font-size: 24rpx;
+}
+
+.detail-reply-user {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 16rpx;
+}
+
+.detail-reply-avatar {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+}
+
+.detail-reply-name {
+  font-size: 26rpx;
+  color: #37474F;
+  font-weight: 600;
+}
+
+.detail-reply-role {
+  font-size: 20rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 20rpx;
+}
+
+.detail-reply-role.teacher {
+  color: var(--primary-green-dark);
+  background-color: var(--primary-green-light);
+}
+
+.detail-reply-role.student {
+  color: #607D8B;
+  background-color: #ECEFF1;
+}
+
+.detail-reply-time {
+  margin-left: auto;
+  font-size: 22rpx;
+  color: #90A4AE;
+}
+
+.detail-reply-content {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: #455A64;
+}
+
+.detail-reply-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 16rpx;
+}
+
+.detail-reply-image {
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 16rpx;
+}
+
+.reply-input-area {
+  background: white;
+  padding: 20rpx 24rpx calc(20rpx + env(safe-area-inset-bottom));
+  border-top: 1px solid #ECEFF1;
+}
+
+.reply-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.reply-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.reply-preview-item {
+  position: relative;
+}
+
+.reply-preview-image {
+  width: 116rpx;
+  height: 116rpx;
+  border-radius: 18rpx;
+}
+
+.reply-preview-remove {
+  position: absolute;
+  top: -12rpx;
+  right: -12rpx;
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  font-size: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reply-compose-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.image-btn,
+.send-btn {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+}
+
+.image-btn {
+  background: #ECEFF1;
+  color: #607D8B;
+}
+
+.send-btn {
+  background: var(--primary-green);
+  color: white;
+}
+
+.reply-input {
+  flex: 1;
+  height: 76rpx;
+  background: #F5F7F5;
+  border-radius: 38rpx;
+  padding: 0 28rpx;
+  font-size: 28rpx;
+  color: var(--text-main);
 }
 
 .count {
