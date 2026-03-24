@@ -1,83 +1,13 @@
 const app = getApp();
 
-function isVisibleInSquare(question) {
-  return !!question?.isPublic && question.auditStatus === 'passed' && question.reviewStatus === 'approved';
-}
-
-function buildSubmissionStatus(question) {
-  if (!question?.isPublic) {
-    return {
-      submissionStatusText: '',
-      submissionStatusClass: '',
-      submissionDetailText: ''
-    };
-  }
-
-  if (question.auditStatus === 'pending') {
-    return {
-      submissionStatusText: '系统审核中',
-      submissionStatusClass: 'pending',
-      submissionDetailText: '提交成功，暂未公开展示'
-    };
-  }
-
-  if (question.auditStatus === 'failed') {
-    return {
-      submissionStatusText: '待复核',
-      submissionStatusClass: 'pending',
-      submissionDetailText: question.reviewReason || '系统审核暂时异常，请稍后查看结果'
-    };
-  }
-
-  if (question.auditStatus === 'rejected') {
-    return {
-      submissionStatusText: '未通过',
-      submissionStatusClass: 'rejected',
-      submissionDetailText: question.reviewReason || '内容未通过平台审核'
-    };
-  }
-
-  if (question.reviewStatus === 'pending') {
-    return {
-      submissionStatusText: '待审核',
-      submissionStatusClass: 'pending',
-      submissionDetailText: '系统审核已通过，等待教师审核'
-    };
-  }
-
-  if (question.reviewStatus === 'rejected') {
-    return {
-      submissionStatusText: '已驳回',
-      submissionStatusClass: 'rejected',
-      submissionDetailText: question.reviewReason ? `驳回理由：${question.reviewReason}` : '未在广场展示'
-    };
-  }
-
-  return {
-    submissionStatusText: '已通过',
-    submissionStatusClass: 'approved',
-    submissionDetailText: '已在广场展示'
-  };
-}
-
-function decorateSubmission(question) {
-  return {
-    ...question,
-    ...buildSubmissionStatus(question),
-    showSquareSubmissionStatus: !!question?.isPublic && !isVisibleInSquare(question)
-  };
-}
-
 Page({
   data: {
     questions: [],
     allQuestions: [],
-    mySquareSubmissions: [],
     page: 1,
     pageSize: 20,
     hasMore: true,
     loadingQuestions: false,
-    loadingMySquareSubmissions: false,
     currentSort: 'time',
     searchKeyword: '',
     showLoginModal: false,
@@ -88,7 +18,7 @@ Page({
     },
     // 详情页相关
     showDetail: false,
-    currentQuestion: null,
+    currentQuestion: {},
     replyContent: '',
     replyImages: [],
     uploadingReplyImage: false
@@ -100,14 +30,12 @@ Page({
       this.setData({ showLoginModal: true });
     } else {
       this.loadQuestions();
-      this.loadMySquareSubmissions();
     }
   },
 
   onShow: function() {
     if (app.globalData.isLoggedIn) {
       this.loadQuestions();
-      this.loadMySquareSubmissions();
     }
   },
 
@@ -143,7 +71,6 @@ Page({
       this.setData({ showLoginModal: false, loginSubmitting: false });
       wx.showToast({ title: '欢迎回来', icon: 'success' });
       this.loadQuestions();
-      this.loadMySquareSubmissions();
     }).catch(err => {
       wx.hideLoading();
       this.setData({ loginSubmitting: false });
@@ -201,40 +128,6 @@ Page({
     });
   },
 
-  loadMySquareSubmissions() {
-    const token = wx.getStorageSync('token');
-    if (!token) {
-      this.setData({ mySquareSubmissions: [] });
-      return;
-    }
-
-    this.setData({ loadingMySquareSubmissions: true });
-    wx.request({
-      url: `${app.globalData.baseUrl}/my/questions`,
-      method: 'GET',
-      header: {
-        Authorization: token
-      },
-      success: (res) => {
-        if (res.statusCode === 200) {
-          const submissions = (res.data || []).filter((item) => (
-            item.isPublic && !isVisibleInSquare(item)
-          )).map(decorateSubmission);
-          this.setData({ mySquareSubmissions: submissions });
-          return;
-        }
-
-        wx.showToast({ title: res.data?.error || '投稿进度加载失败', icon: 'none' });
-      },
-      fail: () => {
-        wx.showToast({ title: '投稿进度加载失败', icon: 'none' });
-      },
-      complete: () => {
-        this.setData({ loadingMySquareSubmissions: false });
-      }
-    });
-  },
-
   // ... 之前的排序和搜索逻辑 ...
   changeSort: function(e) {
     const type = e.currentTarget.dataset.type;
@@ -275,9 +168,8 @@ Page({
       success: (res) => {
         wx.hideLoading();
         if (res.statusCode === 200) {
-          const question = decorateSubmission(res.data || {});
           this.setData({
-            currentQuestion: question,
+            currentQuestion: res.data,
             showDetail: true
           });
         }
@@ -286,12 +178,7 @@ Page({
   },
 
   onDetailClose() {
-    this.setData({
-      showDetail: false,
-      currentQuestion: null,
-      replyContent: '',
-      replyImages: []
-    });
+    this.setData({ showDetail: false });
   },
 
   onReplyInput(e) {
@@ -388,10 +275,9 @@ Page({
 
   previewReplyImage(e) {
     const url = e.currentTarget.dataset.url;
-    const urls = e.currentTarget.dataset.urls || this.data.replyImages;
     wx.previewImage({
       current: url,
-      urls
+      urls: this.data.replyImages
     });
   },
 
@@ -476,7 +362,6 @@ Page({
           // 刷新详情
           this.fetchQuestionDetail(qid);
           this.loadQuestions();
-          this.loadMySquareSubmissions();
         } else {
             wx.showToast({ title: '回复失败', icon: 'none' });
         }

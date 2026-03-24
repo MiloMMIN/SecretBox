@@ -3,18 +3,11 @@ const app = getApp();
 Page({
   data: {
     loading: false,
-    loadingMore: false,
     questions: [],
-    page: 1,
-    pageSize: 20,
-    hasMore: true,
     reviewFilter: 'pending',
     reviewFilterLabel: '待审核',
     showDetail: false,
-    currentQuestion: null,
-    showRejectDialog: false,
-    rejectReason: '',
-    rejectQuestionId: null
+    currentQuestion: null
   },
 
   onLoad() {
@@ -40,42 +33,24 @@ Page({
     });
   },
 
-  loadQuestions(options = {}) {
-    const { append = false } = options;
-    if (append && (this.data.loadingMore || !this.data.hasMore)) {
-      return;
-    }
-
-    const targetPage = append ? (this.data.page + 1) : 1;
-    this.setData({
-      loading: append ? this.data.loading : true,
-      loadingMore: append
-    });
+  loadQuestions() {
+    this.setData({ loading: true });
     this.request({
       url: `${app.globalData.baseUrl}/teacher/questions`,
       method: 'GET',
       data: {
         scope: 'square',
-        reviewStatus: this.data.reviewFilter,
-        page: targetPage,
-        pageSize: this.data.pageSize
+        reviewStatus: this.data.reviewFilter
       }
     }).then((res) => {
-      this.setData({ loading: false, loadingMore: false });
+      this.setData({ loading: false });
       if (res.statusCode === 200) {
-        const payload = res.data || {};
-        const items = Array.isArray(payload) ? payload : (payload.items || []);
-        const pagination = Array.isArray(payload) ? null : (payload.pagination || {});
-        this.setData({
-          questions: append ? [...this.data.questions, ...items] : items,
-          page: targetPage,
-          hasMore: pagination ? !!pagination.hasMore : (items.length >= this.data.pageSize)
-        });
+        this.setData({ questions: res.data || [] });
         return;
       }
       wx.showToast({ title: res.data?.error || '加载失败', icon: 'none' });
     }).catch(() => {
-      this.setData({ loading: false, loadingMore: false });
+      this.setData({ loading: false });
       wx.showToast({ title: '加载失败', icon: 'none' });
     });
   },
@@ -90,16 +65,10 @@ Page({
     this.setData({
       reviewFilter: filter,
       reviewFilterLabel: label,
-      page: 1,
-      hasMore: true,
       showDetail: false,
       currentQuestion: null
     });
     this.loadQuestions();
-  },
-
-  onReachBottom() {
-    this.loadQuestions({ append: true });
   },
 
   openQuestion(e) {
@@ -161,15 +130,6 @@ Page({
     const action = e.currentTarget.dataset.action;
     const actionText = action === 'approve' ? '通过' : '驳回';
 
-    if (action === 'reject') {
-      this.setData({
-        showRejectDialog: true,
-        rejectReason: '',
-        rejectQuestionId: id
-      });
-      return;
-    }
-
     wx.showModal({
       title: '审核确认',
       content: `确认${actionText}这条广场提问吗？`,
@@ -178,66 +138,32 @@ Page({
           return;
         }
 
-        this.submitReview(id, action);
-      }
-    });
-  },
+        this.request({
+          url: `${app.globalData.baseUrl}/teacher/questions/${id}/review`,
+          method: 'POST',
+          data: { action }
+        }).then((res) => {
+          if (res.statusCode === 200 && res.data.success) {
+            wx.showToast({ title: `已${actionText}`, icon: 'success' });
+            const shouldKeepDetailOpen = this.data.currentQuestion?.id === id && (
+              this.data.reviewFilter === 'all' || this.data.reviewFilter === res.data.reviewStatus
+            );
 
-  submitReview(id, action, reason = '') {
-    const actionText = action === 'approve' ? '通过' : '驳回';
-    this.request({
-      url: `${app.globalData.baseUrl}/teacher/questions/${id}/review`,
-      method: 'POST',
-      data: { action, reason }
-    }).then((res) => {
-      if (res.statusCode === 200 && res.data.success) {
-        wx.showToast({ title: `已${actionText}`, icon: 'success' });
-        const shouldKeepDetailOpen = this.data.currentQuestion?.id === id && (
-          this.data.reviewFilter === 'all' || this.data.reviewFilter === res.data.reviewStatus
-        );
+            if (shouldKeepDetailOpen) {
+              this.openQuestion({ currentTarget: { dataset: { id } } });
+            } else if (this.data.currentQuestion?.id === id) {
+              this.closeDetail();
+            }
+            this.loadQuestions();
+            return;
+          }
 
-        if (shouldKeepDetailOpen) {
-          this.openQuestion({ currentTarget: { dataset: { id } } });
-        } else if (this.data.currentQuestion?.id === id) {
-          this.closeDetail();
-        }
-
-        this.setData({
-          showRejectDialog: false,
-          rejectReason: '',
-          rejectQuestionId: null
+          wx.showToast({ title: res.data?.error || '审核失败', icon: 'none' });
+        }).catch(() => {
+          wx.showToast({ title: '审核失败', icon: 'none' });
         });
-        this.loadQuestions();
-        return;
       }
-
-      wx.showToast({ title: res.data?.error || '审核失败', icon: 'none' });
-    }).catch(() => {
-      wx.showToast({ title: '审核失败', icon: 'none' });
     });
-  },
-
-  onRejectReasonInput(e) {
-    this.setData({
-      rejectReason: e.detail.value
-    });
-  },
-
-  closeRejectDialog() {
-    this.setData({
-      showRejectDialog: false,
-      rejectReason: '',
-      rejectQuestionId: null
-    });
-  },
-
-  confirmRejectReview() {
-    const id = this.data.rejectQuestionId;
-    if (!id) {
-      return;
-    }
-
-    this.submitReview(id, 'reject', (this.data.rejectReason || '').trim());
   },
 
   deleteReply(e) {

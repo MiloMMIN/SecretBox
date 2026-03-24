@@ -118,8 +118,6 @@
           <view wx:if="{{item.latestReplyPreview}}" class="teacher-question-latest">最新回复：{{item.latestReplyPreview}}</view>
           <view class="teacher-question-action">点击查看详情并回复</view>
         </view>
-        <view wx:if="{{teacherHasMore}}" class="teacher-load-more" bindtap="loadMoreTeacherQuestions">{{teacherLoadingMore ? '加载中...' : '加载更多'}}</view>
-        <view wx:elif="{{teacherQuestions.length > 0}}" class="teacher-load-more muted">已经到底了</view>
       </block>
       <view wx:else class="empty-sub">暂无相关内容</view>
     </view>

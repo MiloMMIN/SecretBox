@@ -30,57 +30,16 @@ function buildEntry(profile) {
 function buildQuestionStatus(question) {
   if (question?.isPublic) {
     const reviewStatus = question.reviewStatus || 'pending';
-    const auditStatus = question.auditStatus || 'passed';
     const reviewStatusTextMap = {
       pending: '审核中',
       approved: '已通过',
       rejected: '未通过'
     };
 
-    if (auditStatus === 'pending') {
-      return {
-        statusText: '审核中',
-        statusClass: 'pending',
-        detailText: '系统审核中，暂未公开展示'
-      };
-    }
-
-    if (auditStatus === 'failed') {
-      return {
-        statusText: '待复核',
-        statusClass: 'pending',
-        detailText: question.reviewReason || '系统审核暂时异常，请稍后查看结果'
-      };
-    }
-
-    if (auditStatus === 'rejected') {
-      return {
-        statusText: '未通过',
-        statusClass: 'rejected',
-        detailText: question.reviewReason || '内容未通过平台审核，未在广场展示'
-      };
-    }
-
-    if (reviewStatus === 'pending') {
-      return {
-        statusText: '待审核',
-        statusClass: 'pending',
-        detailText: '系统审核已通过，等待教师审核'
-      };
-    }
-
-    if (reviewStatus === 'rejected') {
-      return {
-        statusText: '已驳回',
-        statusClass: 'rejected',
-        detailText: question.reviewReason ? `驳回理由：${question.reviewReason}` : '未在广场展示'
-      };
-    }
-
     return {
       statusText: reviewStatusTextMap[reviewStatus] || '审核中',
       statusClass: reviewStatus,
-      detailText: reviewStatus === 'approved' ? '已在广场展示' : '审核中，暂未公开展示'
+      detailText: reviewStatus === 'approved' ? '已在广场展示' : (reviewStatus === 'rejected' ? '未在广场展示' : '等待老师审核')
     };
   }
 
@@ -107,12 +66,8 @@ Page({
     teacherQuestions: [],
     teacherViewScope: 'pending',
     teacherViewTitle: '待回复',
-    teacherPage: 1,
-    teacherPageSize: 10,
-    teacherHasMore: true,
     showTeacherQuestions: false,
     teacherLoading: false,
-    teacherLoadingMore: false,
     teacherInviteCode: '',
     showTeacherUpgrade: false,
     exportFilePath: '',
@@ -416,41 +371,23 @@ Page({
     this.loadTeacherQuestions(scope, title);
   },
 
-  loadTeacherQuestions(scope, title, options = {}) {
-    const { append = false } = options;
-    if (append && (this.data.teacherLoadingMore || !this.data.teacherHasMore)) {
-      return;
-    }
-
-    const targetPage = append ? (this.data.teacherPage + 1) : 1;
+  loadTeacherQuestions(scope, title) {
     this.setData({
       teacherViewScope: scope,
       teacherViewTitle: title,
       showTeacherQuestions: true,
-      teacherLoading: append ? this.data.teacherLoading : true,
-      teacherLoadingMore: append
+      teacherLoading: true
     });
 
     wx.request({
       url: `${app.globalData.baseUrl}/teacher/questions`,
       method: 'GET',
       header: { 'Authorization': wx.getStorageSync('token') },
-      data: {
-        scope,
-        page: targetPage,
-        pageSize: this.data.teacherPageSize
-      },
+      data: { scope },
       success: (res) => {
-        this.setData({ teacherLoading: false, teacherLoadingMore: false });
+        this.setData({ teacherLoading: false });
         if (res.statusCode === 200) {
-          const payload = res.data || {};
-          const items = Array.isArray(payload) ? payload : (payload.items || []);
-          const pagination = Array.isArray(payload) ? null : (payload.pagination || {});
-          this.setData({
-            teacherQuestions: append ? [...this.data.teacherQuestions, ...items] : items,
-            teacherPage: targetPage,
-            teacherHasMore: pagination ? !!pagination.hasMore : (items.length >= this.data.teacherPageSize)
-          });
+          this.setData({ teacherQuestions: res.data || [] });
           this.markTeacherNotificationsRead();
           return;
         }
@@ -461,20 +398,13 @@ Page({
         });
       },
       fail: () => {
-        this.setData({ teacherLoading: false, teacherLoadingMore: false });
+        this.setData({ teacherLoading: false });
         wx.showToast({
           title: '教师列表加载失败',
           icon: 'none'
         });
       }
     });
-  },
-
-  loadMoreTeacherQuestions() {
-    if (!this.data.showTeacherQuestions) {
-      return;
-    }
-    this.loadTeacherQuestions(this.data.teacherViewScope, this.data.teacherViewTitle, { append: true });
   },
 
   goToDetail(e) {

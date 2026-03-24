@@ -22,11 +22,8 @@
       <view class="question-actions">
         <button wx:if="{{item.reviewStatus !== 'approved'}}" class="approve-btn" catchtap="reviewQuestion" data-id="{{item.id}}" data-action="approve">通过</button>
         <button wx:if="{{item.reviewStatus !== 'rejected'}}" class="reject-btn" catchtap="reviewQuestion" data-id="{{item.id}}" data-action="reject">驳回</button>
+        <button class="danger-btn" catchtap="deleteQuestion" data-id="{{item.id}}">删除留言</button>
       </view>
-    </view>
-    <view wx:if="{{loadingMore || !hasMore}}" class="list-status">
-      <text wx:if="{{loadingMore}}">加载更多中...</text>
-      <text wx:elif="{{!hasMore}}">已经到底了</text>
     </view>
   </block>
   <view wx:else class="empty-state">当前{{reviewFilterLabel}}列表为空</view>
@@ -58,7 +55,7 @@
               <button wx:if="{{currentQuestion.reviewStatus !== 'rejected'}}" class="reject-btn small-action" bindtap="reviewQuestion" data-id="{{currentQuestion.id}}" data-action="reject">驳回</button>
             </view>
           </view>
-          <view wx:if="{{currentQuestion.reviewReason}}" class="detail-review-reason">驳回原因：{{currentQuestion.reviewReason}}</view>
+          <button class="danger-btn full" bindtap="deleteQuestion" data-id="{{currentQuestion.id}}">删除整条留言</button>
         </view>
         <view class="reply-section">
           <view class="section-title">回复管理</view>
@@ -73,7 +70,7 @@
               </view>
               <view wx:if="{{item.content}}" class="reply-content">{{item.content}}</view>
               <view wx:if="{{item.images && item.images.length}}" class="reply-images">
-                <image wx:for="{{item.images}}" wx:for-item="imageUrl" wx:key="*this" class="reply-image" src="{{imageUrl}}" mode="aspectFill" bindtap="previewImage" data-url="{{imageUrl}}" data-urls="{{item.images}}"></image>
+                <image wx:for="{{item.images}}" wx:key="*this" class="reply-image" src="{{item}}" mode="aspectFill" bindtap="previewImage" data-url="{{item}}" data-urls="{{item.images}}"></image>
               </view>
               <button class="danger-btn small" bindtap="deleteReply" data-id="{{item.id}}">删除回复</button>
             </view>
@@ -83,23 +80,4 @@
       </scroll-view>
     </view>
   </page-container>
-
-  <view wx:if="{{showRejectDialog}}" class="dialog-mask">
-    <view class="dialog-card">
-      <view class="dialog-title">驳回提问</view>
-      <view class="dialog-desc">可选填写驳回理由，作者稍后会在自己的投稿进度里看到。</view>
-      <textarea
-        class="dialog-textarea"
-        maxlength="120"
-        auto-height
-        placeholder="例如：表达不清晰、内容不适合公开广场、建议补充更多背景（可选）"
-        value="{{rejectReason}}"
-        bindinput="onRejectReasonInput"
-      ></textarea>
-      <view class="dialog-actions">
-        <button class="dialog-btn ghost" bindtap="closeRejectDialog">取消</button>
-        <button class="dialog-btn solid" bindtap="confirmRejectReview">确认驳回</button>
-      </view>
-    </view>
-  </view>
 </view>

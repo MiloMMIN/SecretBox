@@ -359,18 +359,6 @@
   color: #2E7D32;
 }
 
-.teacher-load-more {
-  margin-top: 20rpx;
-  text-align: center;
-  font-size: 24rpx;
-  color: #2E7D32;
-  padding: 18rpx 0 6rpx;
-}
-
-.teacher-load-more.muted {
-  color: #90A4AE;
-}
-
 .detail-container {
   height: 100%;
   display: flex;

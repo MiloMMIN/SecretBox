@@ -25,28 +25,16 @@ def ensure_schema_updates():
             print("检测到 question 缺少 review_status，正在补齐...")
             db.session.execute(text("ALTER TABLE question ADD COLUMN review_status VARCHAR(20) NOT NULL DEFAULT 'approved'"))
             db.session.commit()
-        if 'review_reason' not in question_columns:
-            print("检测到 question 缺少 review_reason，正在补齐...")
-            db.session.execute(text("ALTER TABLE question ADD COLUMN review_reason VARCHAR(255) NULL"))
-            db.session.commit()
-        if 'audit_status' not in question_columns:
-            print("检测到 question 缺少 audit_status，正在补齐...")
-            db.session.execute(text("ALTER TABLE question ADD COLUMN audit_status VARCHAR(20) NOT NULL DEFAULT 'passed'"))
-            db.session.commit()
-        if 'audit_checked_at' not in question_columns:
-            print("检测到 question 缺少 audit_checked_at，正在补齐...")
-            db.session.execute(text("ALTER TABLE question ADD COLUMN audit_checked_at DATETIME NULL"))
-            db.session.commit()
 
         ensure_index(
             'question',
-            'idx_question_public_audit_review_created',
-            "CREATE INDEX idx_question_public_audit_review_created ON question (is_public, audit_status, review_status, created_at)"
+            'idx_question_public_review_created',
+            "CREATE INDEX idx_question_public_review_created ON question (is_public, review_status, created_at)"
         )
         ensure_index(
             'question',
-            'idx_question_counselor_audit_created',
-            "CREATE INDEX idx_question_counselor_audit_created ON question (counselor_id, audit_status, created_at)"
+            'idx_question_counselor_created',
+            "CREATE INDEX idx_question_counselor_created ON question (counselor_id, created_at)"
         )
         ensure_index(
             'question',

@@ -457,9 +457,7 @@ def get_question_review_label(review_status):
 def serialize_question_review(question):
     return {
         'reviewStatus': question.review_status,
-        'reviewStatusText': get_question_review_label(question.review_status),
-        'auditStatus': question.audit_status,
-        'reviewReason': question.review_reason
+        'reviewStatusText': get_question_review_label(question.review_status)
     }
 
 
@@ -505,14 +503,7 @@ def apply_teacher_question_scope(query, user, scope, review_status='all', today_
             ~Question.id.in_(teacher_replied_query)
         )
     elif scope == 'today':
-        query = query.filter(
-            Question.created_at >= today_start
-        ).filter(
-            or_(
-                Question.is_public.is_(False),
-                Question.review_status == 'approved'
-            )
-        )
+        query = query.filter(Question.created_at >= today_start)
     elif scope == 'inbox':
         query = query.filter(
             Question.counselor_id == user.id,
@@ -558,7 +549,6 @@ def serialize_teacher_question(question, summary=None):
         'isAnonymous': question.is_anonymous,
         'reviewStatus': question.review_status,
         'reviewStatusText': get_question_review_label(question.review_status),
-        'reviewReason': question.review_reason,
         'stars': question.stars,
         'comments': summary.get('comments', 0),
         'hasTeacherReply': summary.get('hasTeacherReply', False),
@@ -584,7 +574,6 @@ class Question(db.Model):
     is_anonymous = db.Column(db.Boolean, default=False)
     is_public = db.Column(db.Boolean, default=False)
     review_status = db.Column(db.String(20), default='approved', nullable=False)
-    review_reason = db.Column(db.String(255))
     audit_status = db.Column(db.String(20), default='passed', nullable=False)
     audit_checked_at = db.Column(db.DateTime)
     student_class = db.Column(db.String(64))
@@ -676,7 +665,6 @@ def audit_public_question(self, question_id):
             if self.request.retries >= 3:
                 question.audit_status = 'failed'
                 question.audit_checked_at = datetime.utcnow()
-                question.review_reason = '系统审核暂时异常，请稍后查看结果'
                 db.session.commit()
                 raise
 
@@ -685,11 +673,9 @@ def audit_public_question(self, question_id):
         question.audit_checked_at = datetime.utcnow()
         if audit_result.get('ok'):
             question.audit_status = 'passed'
-            question.review_reason = None
         else:
             question.audit_status = 'rejected'
             question.review_status = 'rejected'
-            question.review_reason = '未通过系统内容审核'
 
         db.session.commit()
         return {'status': question.audit_status}
@@ -986,6 +972,7 @@ def get_teacher_dashboard():
         return error_response
 
     profile = get_or_create_teacher_profile(user)
+    teacher_replied_question_ids = get_teacher_replied_question_ids([question.id for question in visible_questions])
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
     base_query = build_teacher_visible_question_query(user)
     unread_query = base_query
@@ -1113,30 +1100,19 @@ def get_questions():
         joinedload(Question.user)
     ).filter_by(
         is_public=True,
-        review_status='approved',
-        audit_status='passed'
+        review_status='approved'
     )
     
     if search:
         query = query.filter(Question.content.contains(search))
         
     if sort == 'hot':
-        query = query.order_by(
-            Question.stars.desc(),
-            Question.created_at.desc(),
-            Question.id.desc()
-        )
+        query = query.order_by(Question.stars.desc())
     elif sort == 'discuss':
         # 简单实现，暂不支持按评论数排序，仍按时间
-        query = query.order_by(
-            Question.created_at.desc(),
-            Question.id.desc()
-        )
+        query = query.order_by(Question.created_at.desc())
     else:
-        query = query.order_by(
-            Question.created_at.desc(),
-            Question.id.desc()
-        )
+        query = query.order_by(Question.created_at.desc())
 
     offset = (page - 1) * page_size
     paged_questions = query.offset(offset).limit(page_size + 1).all()
@@ -1220,17 +1196,12 @@ def create_question():
     if not content:
         return jsonify({'error': 'Missing content'}), 400
 
+    audit_result = audit_text_content(content, user.openid)
+    if not audit_result.get('ok'):
+        return jsonify({'error': audit_result.get('message') or '内容审核未通过'}), 400
+
     is_public = bool(data.get('isPublic', False))
-    audit_status = 'passed'
-    audit_checked_at = datetime.utcnow()
-    if is_public:
-        if is_wechat_configured():
-            audit_status = 'pending'
-            audit_checked_at = None
-    else:
-        audit_result = audit_text_content(content, user.openid)
-        if not audit_result.get('ok'):
-            return jsonify({'error': audit_result.get('message') or '内容审核未通过'}), 400
+    requires_review = is_public
         
     q = Question(
         content=content,
@@ -1238,23 +1209,12 @@ def create_question():
         counselor_id=data.get('counselorId'),
         is_anonymous=data.get('isAnonymous', False),
         is_public=is_public,
-        review_status='pending' if is_public else 'approved',
-        review_reason=None,
-        audit_status=audit_status,
-        audit_checked_at=audit_checked_at,
+        review_status='pending' if requires_review else 'approved',
         student_class=data.get('studentClass'),
         student_name=data.get('studentName')
     )
     db.session.add(q)
     db.session.commit()
-
-    if is_public and q.audit_status == 'pending':
-        try:
-            audit_public_question.delay(q.id)
-        except Exception:
-            db.session.delete(q)
-            db.session.commit()
-            return jsonify({'error': '内容审核排队失败，请稍后重试'}), 503
     
     return jsonify({'success': True, 'id': q.id, **serialize_question_review(q)})
 
@@ -1303,11 +1263,6 @@ def toggle_star(qid):
         return jsonify({'error': 'Unauthorized'}), 401
 
     question = Question.query.get_or_404(qid)
-    if not can_view_question(user, question):
-        return jsonify({'error': 'Forbidden'}), 403
-    if not question.is_public or question.review_status != 'approved' or question.audit_status != 'passed':
-        return jsonify({'error': 'Only approved public questions can be starred'}), 400
-
     star = Star.query.filter_by(user_id=user.id, question_id=qid).first()
     if star:
         db.session.delete(star)
@@ -1354,22 +1309,12 @@ def review_teacher_question(qid):
     question = Question.query.get_or_404(qid)
     if not question.is_public:
         return jsonify({'error': 'Only public questions can be reviewed'}), 400
-    if question.audit_status != 'passed':
-        return jsonify({'error': 'Question is still under system review'}), 400
 
-    payload = request.json or {}
-    action = payload.get('action')
-    reason = (payload.get('reason') or '').strip()
+    action = (request.json or {}).get('action')
     if action not in {'approve', 'reject'}:
         return jsonify({'error': 'Invalid review action'}), 400
 
-    if action == 'approve':
-        question.review_status = 'approved'
-        question.review_reason = None
-    else:
-        question.review_status = 'rejected'
-        question.review_reason = reason[:255] if reason else None
-
+    question.review_status = 'approved' if action == 'approve' else 'rejected'
     db.session.commit()
     return jsonify({'success': True, **serialize_question_review(question)})
 
@@ -1392,68 +1337,6 @@ def delete_teacher_reply(reply_id):
     db.session.delete(reply)
     db.session.commit()
     return jsonify({'success': True})
-
-
-@app.route('/api/my/conversations/<int:counselor_id>', methods=['GET'])
-def get_my_conversation(counselor_id):
-    user = get_authenticated_user()
-    if not user:
-        return jsonify({'error': 'Unauthorized'}), 401
-
-    questions = Question.query.options(
-        selectinload(Question.replies_list).joinedload(Reply.user),
-        selectinload(Question.replies_list).selectinload(Reply.images)
-    ).filter(
-        Question.user_id == user.id,
-        Question.is_public.is_(False),
-        Question.counselor_id == counselor_id
-    ).order_by(
-        Question.created_at.asc(),
-        Question.id.asc()
-    ).all()
-
-    items = []
-    for question in questions:
-        items.append({
-            'id': f'q-{question.id}',
-            'questionId': question.id,
-            'kind': 'question',
-            'senderRole': 'student',
-            'senderName': '我',
-            'senderAvatarUrl': '',
-            'isMine': True,
-            'content': question.content,
-            'images': [],
-            'time': question.created_at.strftime('%Y-%m-%d %H:%M')
-        })
-
-        replies = sorted(
-            question.replies_list,
-            key=lambda reply: (reply.created_at, reply.id)
-        )
-        for reply in replies:
-            items.append({
-                'id': f'r-{reply.id}',
-                'questionId': question.id,
-                'kind': 'reply',
-                'senderRole': reply.user.role if reply.user else 'teacher',
-                'senderName': (reply.user.nickname if reply.user and reply.user.nickname else '教师'),
-                'senderAvatarUrl': (reply.user.avatar_url if reply.user and reply.user.avatar_url else ''),
-                'isMine': reply.user_id == user.id,
-                'content': build_reply_preview(reply) or '',
-                'images': [image.image_url for image in reply.images],
-                'time': reply.created_at.strftime('%Y-%m-%d %H:%M')
-            })
-
-    latest_question = questions[-1] if questions else None
-    return jsonify({
-        'items': items,
-        'defaults': {
-            'isAnonymous': latest_question.is_anonymous if latest_question else False,
-            'studentClass': latest_question.student_class if latest_question and latest_question.student_class else '',
-            'studentName': latest_question.student_name if latest_question and latest_question.student_name else ''
-        }
-    })
 
 # 我的提问
 @app.route('/api/my/questions', methods=['GET'])
