@@ -9,7 +9,7 @@
     <block wx:for="{{counselors}}" wx:key="id">
       <view class="card counselor-card" bindtap="selectCounselor" data-id="{{item.id}}" data-name="{{item.name}}" data-avatar="{{item.avatar}}" data-avatar-text="{{item.avatarText}}">
         <view class="counselor-info">
-          <image wx:if="{{item.avatar}}" class="avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+          <image wx:if="{{item.avatar && !item.avatarError}}" class="avatar" src="{{item.avatar}}" mode="aspectFill" binderror="onImageError" data-index="{{index}}"></image>
           <view wx:else class="avatar avatar-placeholder">{{item.avatarText}}</view>
           <view class="text-info">
             <view class="name-row">

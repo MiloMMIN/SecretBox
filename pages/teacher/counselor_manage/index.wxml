@@ -42,6 +42,8 @@
     </view>
 
     <button class="save-btn" bindtap="saveProfile" disabled="{{saving}}">{{saving ? '保存中...' : (creating ? '创建教师邀请码' : '保存设置')}}</button>
+
+    <button wx:if="{{!creating && editor.kind === 'teacher'}}" class="delete-btn" bindtap="deleteTeacher" disabled="{{saving}}">删除该教师</button>
   </view>
 
   <view wx:else class="empty-state">暂无可管理的教师账号</view>

@@ -17,6 +17,7 @@ services:
       - WX_APP_ID=${WX_APP_ID}
       - WX_APP_SECRET=${WX_APP_SECRET}
       - SECRET_KEY=${SECRET_KEY}
+      - EXTERNAL_URL=${EXTERNAL_URL}
     depends_on:
       - db
       - redis

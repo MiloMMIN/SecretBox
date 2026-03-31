@@ -212,6 +212,20 @@ Page({
     });
   },
 
+  onImageError(e) {
+    const { type, index } = e.currentTarget.dataset;
+    if (type === 'user') {
+      this.setData({ 'userInfo.avatarError': true });
+    } else if (type === 'reply') {
+      const currentQuestion = this.data.currentQuestion;
+      if (currentQuestion && currentQuestion.replies && currentQuestion.replies[index]) {
+        currentQuestion.replies[index].user = currentQuestion.replies[index].user || {};
+        currentQuestion.replies[index].user.avatarError = true;
+        this.setData({ currentQuestion });
+      }
+    }
+  },
+
   onTeacherInviteCodeInput(e) {
     this.setData({
       teacherInviteCode: e.detail.value
@@ -387,7 +401,8 @@ Page({
       success: (res) => {
         this.setData({ teacherLoading: false });
         if (res.statusCode === 200) {
-          this.setData({ teacherQuestions: res.data || [] });
+          const data = res.data || {};
+          this.setData({ teacherQuestions: data.items || [] });
           this.markTeacherNotificationsRead();
           return;
         }

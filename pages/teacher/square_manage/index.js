@@ -45,7 +45,8 @@ Page({
     }).then((res) => {
       this.setData({ loading: false });
       if (res.statusCode === 200) {
-        this.setData({ questions: res.data || [] });
+        const data = res.data || {};
+        this.setData({ questions: data.items || [] });
         return;
       }
       wx.showToast({ title: res.data?.error || '加载失败', icon: 'none' });

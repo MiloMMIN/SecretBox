@@ -7,7 +7,6 @@ Page({
     counselorName: '',
     content: '',
     isAnonymous: false,
-    isPublic: false,
     studentClass: '',
     studentName: ''
   },
@@ -28,12 +27,6 @@ Page({
   onAnonymousChange: function(e) {
     this.setData({
       isAnonymous: e.detail.value
-    });
-  },
-
-  onPublicChange: function(e) {
-    this.setData({
-      isPublic: e.detail.value
     });
   },
 
@@ -89,7 +82,7 @@ Page({
         content: this.data.content.trim(),
         counselorId: this.data.counselorId,
         isAnonymous: this.data.isAnonymous,
-        isPublic: this.data.isPublic,
+        isPublic: false,
         studentClass: this.data.studentClass.trim(),
         studentName: this.data.studentName.trim()
       },

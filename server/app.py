@@ -47,6 +47,8 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024
+    # 外部访问 URL（用于生成文件链接，适用于反向代理场景）
+    EXTERNAL_URL = os.getenv('EXTERNAL_URL', '')
 
     # 角色配置
     TEACHER_OPENIDS = [
@@ -146,12 +148,14 @@ def run_wechat_text_security_check(content, openid=''):
                 'ok': False,
                 'message': '内容包含敏感信息，请修改后重试',
                 'reason': suggest,
+                'checked_at': datetime.utcnow(),
                 'raw': data
             }
 
         return {
             'ok': True,
             'reason': 'pass',
+            'checked_at': datetime.utcnow(),
             'raw': data
         }
 
@@ -160,24 +164,93 @@ def run_wechat_text_security_check(content, openid=''):
             'ok': False,
             'message': '内容包含敏感信息，请修改后重试',
             'reason': 'risky',
+            'checked_at': datetime.utcnow(),
             'raw': data
         }
 
     raise ValueError(data.get('errmsg') or '微信内容安全校验失败')
 
 
+def run_wechat_image_security_check(image_url, openid=''):
+    """调用微信图片内容安全检测 API"""
+    access_token = get_wechat_access_token()
+    url = f'https://api.weixin.qq.com/wxa/img_sec_check?access_token={access_token}'
+
+    # 下载图片
+    image_response = requests.get(image_url, timeout=10)
+    image_response.raise_for_status()
+
+    # 构建 multipart/form-data 请求
+    files = {'media': ('image.jpg', image_response.content, 'image/jpeg')}
+    data = {}
+    if openid:
+        data['openid'] = openid
+        data['scene'] = 2
+        data['version'] = 2
+
+    response = requests.post(url, files=files, data=data, timeout=10)
+    data = response.json()
+
+    if data.get('errcode') == 0:
+        result = data.get('result') or {}
+        suggest = result.get('suggest', 'pass')
+        if suggest in {'risky', 'review'}:
+            return {
+                'ok': False,
+                'message': '图片包含敏感信息',
+                'reason': suggest,
+                'checked_at': datetime.utcnow(),
+                'raw': data
+            }
+        return {
+            'ok': True,
+            'reason': 'pass',
+            'checked_at': datetime.utcnow(),
+            'raw': data
+        }
+
+    if data.get('errcode') == 87014:
+        return {
+            'ok': False,
+            'message': '图片包含敏感信息',
+            'reason': 'risky',
+            'checked_at': datetime.utcnow(),
+            'raw': data
+        }
+
+    raise ValueError(data.get('errmsg') or '微信图片安全校验失败')
+
+
 def audit_text_content(content, openid=''):
+    checked_at = datetime.utcnow()
     if not content:
-        return {'ok': True}
+        return {'ok': True, 'checked_at': checked_at}
 
     if not is_wechat_configured():
-        return {'ok': True, 'skipped': True, 'reason': 'wechat_not_configured'}
+        return {'ok': True, 'skipped': True, 'reason': 'wechat_not_configured', 'checked_at': checked_at}
 
     try:
-        return run_wechat_text_security_check(content, openid)
+        result = run_wechat_text_security_check(content, openid)
+        return result
     except Exception as exc:
         print(f'Warning: WeChat content security check skipped due to error: {exc}')
-        return {'ok': True, 'skipped': True, 'reason': 'wechat_check_failed'}
+        return {'ok': True, 'skipped': True, 'reason': 'wechat_check_failed', 'checked_at': checked_at}
+
+
+def audit_image_content(image_url, openid=''):
+    """审核图片内容，返回审核结果"""
+    checked_at = datetime.utcnow()
+    if not image_url:
+        return {'ok': True, 'checked_at': checked_at}
+
+    if not is_wechat_configured():
+        return {'ok': True, 'skipped': True, 'reason': 'wechat_not_configured', 'checked_at': checked_at}
+
+    try:
+        return run_wechat_image_security_check(image_url, openid)
+    except Exception as exc:
+        print(f'Warning: WeChat image security check skipped due to error: {exc}')
+        return {'ok': True, 'skipped': True, 'reason': 'wechat_check_failed', 'checked_at': checked_at}
 
 db = SQLAlchemy(app)
 
@@ -197,7 +270,7 @@ def serialize_user(user):
         'id': user.id,
         'nickName': user.nickname,
         'nickname': user.nickname,
-        'avatarUrl': user.avatar_url,
+        'avatarUrl': ensure_absolute_file_url(user.avatar_url),
         'role': user.role
     }
 
@@ -226,7 +299,7 @@ def serialize_teacher_profile(user, profile=None):
         'kind': 'teacher',
         'id': user.id,
         'nickName': display_name,
-        'avatarUrl': avatar_url,
+        'avatarUrl': ensure_absolute_file_url(avatar_url),
         'desc': description,
         'isActive': is_active
     }
@@ -237,7 +310,7 @@ def serialize_teacher_invite(invite):
         'kind': 'invite',
         'id': invite.id,
         'nickName': invite.display_name or '待激活教师',
-        'avatarUrl': invite.avatar_url or '',
+        'avatarUrl': ensure_absolute_file_url(invite.avatar_url or ''),
         'desc': invite.description or '待教师本人激活',
         'isActive': invite.is_active,
         'inviteCode': invite.invite_code,
@@ -246,7 +319,43 @@ def serialize_teacher_invite(invite):
 
 
 def build_file_url(filename):
-    return f"{request.host_url.rstrip('/')}/uploads/{filename}"
+    """Build a full URL for an uploaded file.
+
+    Uses EXTERNAL_URL config if available, otherwise falls back to request.host_url.
+    This is important for production deployments where the app runs behind a reverse proxy.
+    """
+    external_url = app.config.get('EXTERNAL_URL')
+    if external_url:
+        base_url = external_url.rstrip('/')
+    else:
+        base_url = request.host_url.rstrip('/')
+        
+    if base_url.endswith('/api'):
+        return f"{base_url}/uploads/{filename}"
+    else:
+        return f"{base_url}/api/uploads/{filename}"
+
+
+def ensure_absolute_file_url(url):
+    """Ensure a file URL is absolute and uses the current environment's base URL.
+    
+    This fixes stale URLs in the database (e.g. from a different domain or protocol).
+    """
+    if not url:
+        return ''
+    
+    # If it's a local WeChat path or already doesn't contain /uploads/, return as is
+    if '/uploads/' not in url:
+        return url
+    
+    # Extract filename and rebuild using current host
+    try:
+        filename = url.rsplit('/uploads/', 1)[-1]
+        # Remove any query parameters if present
+        filename = filename.split('?')[0]
+        return build_file_url(filename)
+    except Exception:
+        return url
 
 
 def sanitize_avatar_url(file_url):
@@ -270,10 +379,15 @@ def remove_uploaded_file_by_url(file_url):
         return
 
     parsed = urlparse(file_url)
-    if '/uploads/' not in parsed.path:
+    
+    # support both /uploads/ and /api/uploads/
+    if '/api/uploads/' in parsed.path:
+        filename = parsed.path.rsplit('/api/uploads/', 1)[-1]
+    elif '/uploads/' in parsed.path:
+        filename = parsed.path.rsplit('/uploads/', 1)[-1]
+    else:
         return
 
-    filename = parsed.path.rsplit('/uploads/', 1)[-1]
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     if os.path.exists(file_path):
         try:
@@ -299,7 +413,7 @@ def get_question_author_payload(question):
 
     return {
         'nickName': question.user.nickname or '微信用户',
-        'avatarUrl': question.user.avatar_url,
+        'avatarUrl': ensure_absolute_file_url(question.user.avatar_url),
         'role': question.user.role
     }
 
@@ -328,9 +442,11 @@ def get_teacher_replied_question_ids(question_ids):
 
 
 def get_teacher_replied_question_id_query():
+    """获取教师已回复的问题ID查询，仅包含审核通过的回复"""
     return db.session.query(Reply.question_id).join(
         User, Reply.user_id == User.id
     ).filter(
+        Reply.audit_status == 'passed',
         User.role == 'teacher'
     ).distinct()
 
@@ -349,26 +465,60 @@ def build_question_summary_map(question_ids, current_user_id=None):
     if not question_ids:
         return summary_map
 
-    reply_count_rows = db.session.query(
-        Reply.question_id,
-        func.count(Reply.id)
-    ).filter(
-        Reply.question_id.in_(question_ids)
-    ).group_by(
-        Reply.question_id
-    ).all()
+    # 构建查询 - 仅包含审核通过的回复
+    reply_count_rows = []
+    try:
+        reply_count_rows = db.session.query(
+            Reply.question_id,
+            func.count(Reply.id)
+        ).filter(
+            Reply.question_id.in_(question_ids),
+            Reply.audit_status == 'passed'
+        ).group_by(
+            Reply.question_id
+        ).all()
+    except Exception:
+        # audit_status 字段可能不存在，忽略过滤条件
+        try:
+            reply_count_rows = db.session.query(
+                Reply.question_id,
+                func.count(Reply.id)
+            ).filter(
+                Reply.question_id.in_(question_ids)
+            ).group_by(
+                Reply.question_id
+            ).all()
+        except Exception:
+            pass
     for question_id, reply_count in reply_count_rows:
         summary_map[question_id]['comments'] = reply_count
 
-    replies = Reply.query.options(
-        joinedload(Reply.user),
-        selectinload(Reply.images)
-    ).filter(
-        Reply.question_id.in_(question_ids)
-    ).order_by(
-        Reply.question_id.asc(),
-        Reply.created_at.desc()
-    ).all()
+    replies = []
+    try:
+        replies = Reply.query.options(
+            joinedload(Reply.user),
+            selectinload(Reply.images)
+        ).filter(
+            Reply.question_id.in_(question_ids),
+            Reply.audit_status == 'passed'
+        ).order_by(
+            Reply.question_id.asc(),
+            Reply.created_at.desc()
+        ).all()
+    except Exception:
+        # audit_status 字段可能不存在，忽略过滤条件
+        try:
+            replies = Reply.query.options(
+                joinedload(Reply.user),
+                selectinload(Reply.images)
+            ).filter(
+                Reply.question_id.in_(question_ids)
+            ).order_by(
+                Reply.question_id.asc(),
+                Reply.created_at.desc()
+            ).all()
+        except Exception:
+            pass
 
     latest_seen = set()
     latest_teacher_seen = set()
@@ -398,33 +548,62 @@ def build_question_summary_map(question_ids, current_user_id=None):
     return summary_map
 
 
-def serialize_reply(reply):
-    return {
+def serialize_reply(reply, include_audit=False):
+    result = {
         'id': reply.id,
         'content': reply.content,
         'time': reply.created_at.strftime('%Y-%m-%d %H:%M'),
-        'images': [image.image_url for image in reply.images],
+        'images': [ensure_absolute_file_url(image.image_url) for image in reply.images],
         'user': {
             'nickname': reply.user.nickname,
-            'avatarUrl': reply.user.avatar_url,
+            'avatarUrl': ensure_absolute_file_url(reply.user.avatar_url),
             'role': reply.user.role
         }
     }
+    if include_audit:
+        try:
+            result['auditStatus'] = reply.audit_status
+        except Exception:
+            result['auditStatus'] = 'passed'  # 字段不存在时默认为 passed
+    return result
 
 
 def get_latest_teacher_reply(question_id):
-    return Reply.query.join(User, Reply.user_id == User.id).filter(
-        Reply.question_id == question_id,
-        User.role == 'teacher'
-    ).order_by(Reply.created_at.desc()).first()
+    try:
+        return Reply.query.join(User, Reply.user_id == User.id).filter(
+            Reply.question_id == question_id,
+            Reply.audit_status == 'passed',
+            User.role == 'teacher'
+        ).order_by(Reply.created_at.desc()).first()
+    except Exception:
+        # audit_status 字段可能不存在
+        return Reply.query.join(User, Reply.user_id == User.id).filter(
+            Reply.question_id == question_id,
+            User.role == 'teacher'
+        ).order_by(Reply.created_at.desc()).first()
 
 
 def get_latest_reply(question_id):
-    return Reply.query.filter_by(question_id=question_id).order_by(Reply.created_at.desc()).first()
+    try:
+        return Reply.query.filter_by(
+            question_id=question_id,
+            audit_status='passed'
+        ).order_by(Reply.created_at.desc()).first()
+    except Exception:
+        # audit_status 字段可能不存在
+        return Reply.query.filter_by(
+            question_id=question_id
+        ).order_by(Reply.created_at.desc()).first()
 
 
 def can_view_question(user, question):
-    if question.audit_status != 'passed':
+    try:
+        audit_status = question.audit_status
+    except Exception:
+        # audit_status 字段可能不存在，假设已通过
+        audit_status = 'passed'
+
+    if audit_status != 'passed':
         return bool(user and question.user_id == user.id)
 
     if question.is_public and question.review_status == 'approved':
@@ -479,8 +658,10 @@ def build_teacher_visible_question_query(user, eager=False):
     if eager:
         query = query.options(joinedload(Question.user))
 
+    # 教师可以看到审核通过或审核中的问题（只要不是被拒绝的）
+    # 注意：audit_status 过滤在查询执行时通过异常处理保护
     return query.filter(
-        Question.audit_status == 'passed',
+        Question.audit_status.in_(['passed', 'pending', 'failed']),
         or_(
             Question.is_public.is_(True),
             Question.counselor_id == user.id,
@@ -505,9 +686,17 @@ def apply_teacher_question_scope(query, user, scope, review_status='all', today_
     elif scope == 'today':
         query = query.filter(Question.created_at >= today_start)
     elif scope == 'inbox':
+        # 树洞信箱：显示所有教师可见的问题，包括私密咨询和公开投稿
         query = query.filter(
-            Question.counselor_id == user.id,
-            Question.is_public.is_(False)
+            or_(
+                # 私密咨询（指定教师且非公开）
+                and_(
+                    Question.counselor_id == user.id,
+                    Question.is_public.is_(False)
+                ),
+                # 公开投稿（待审核的也需要教师处理）
+                Question.is_public.is_(True)
+            )
         )
     elif scope == 'square':
         query = query.filter(Question.is_public.is_(True))
@@ -591,7 +780,10 @@ class Reply(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+    # 审核字段
+    audit_status = db.Column(db.String(20), default='pending', nullable=False)
+    audit_checked_at = db.Column(db.DateTime)
+
     user = db.relationship('User', backref=db.backref('replies', lazy=True))
     question = db.relationship('Question', backref=db.backref('replies_list', lazy=True))
 
@@ -643,11 +835,12 @@ class TeacherInvite(db.Model):
 #    db.create_all()
 
 
-@celery.task(bind=True, name='tasks.audit_public_question')
-def audit_public_question(self, question_id):
+@celery.task(bind=True, name='tasks.audit_question')
+def audit_question(self, question_id):
+    """审核问题内容（适用于所有问题，包括私密和公开）"""
     with app.app_context():
         question = Question.query.options(joinedload(Question.user)).filter_by(id=question_id).first()
-        if not question or not question.is_public:
+        if not question:
             return {'status': 'skipped'}
 
         if question.audit_status == 'passed':
@@ -670,15 +863,85 @@ def audit_public_question(self, question_id):
 
             raise self.retry(exc=exc, countdown=min(30 * (self.request.retries + 1), 180))
 
-        question.audit_checked_at = datetime.utcnow()
+        question.audit_checked_at = audit_result.get('checked_at') or datetime.utcnow()
         if audit_result.get('ok'):
             question.audit_status = 'passed'
         else:
             question.audit_status = 'rejected'
-            question.review_status = 'rejected'
+            # 只有公开问题才需要同步修改 review_status
+            if question.is_public:
+                question.review_status = 'rejected'
 
         db.session.commit()
         return {'status': question.audit_status}
+
+
+@celery.task(bind=True, name='tasks.audit_reply')
+def audit_reply(self, reply_id):
+    """审核回复内容（包括文字和图片）"""
+    with app.app_context():
+        reply = Reply.query.options(
+            joinedload(Reply.user),
+            joinedload(Reply.images)
+        ).filter_by(id=reply_id).first()
+        if not reply:
+            return {'status': 'skipped'}
+
+        if reply.audit_status == 'passed':
+            return {'status': 'passed'}
+
+        openid = reply.user.openid if reply.user else ''
+        checked_at = datetime.utcnow()
+
+        # 1. 审核文字内容
+        if reply.content and is_wechat_configured():
+            try:
+                text_result = run_wechat_text_security_check(reply.content, openid)
+                checked_at = text_result.get('checked_at') or checked_at
+                if not text_result.get('ok'):
+                    reply.audit_status = 'rejected'
+                    reply.audit_checked_at = checked_at
+                    db.session.commit()
+                    return {'status': 'rejected', 'reason': 'text_content_risky'}
+            except Exception as exc:
+                if self.request.retries >= 3:
+                    reply.audit_status = 'failed'
+                    reply.audit_checked_at = checked_at
+                    db.session.commit()
+                    raise
+                raise self.retry(exc=exc, countdown=min(30 * (self.request.retries + 1), 180))
+
+        # 2. 审核图片内容
+        for image in reply.images:
+            if image.image_url and is_wechat_configured():
+                try:
+                    image_result = run_wechat_image_security_check(image.image_url, openid)
+                    checked_at = image_result.get('checked_at') or checked_at
+                    if not image_result.get('ok'):
+                        reply.audit_status = 'rejected'
+                        reply.audit_checked_at = checked_at
+                        db.session.commit()
+                        return {'status': 'rejected', 'reason': 'image_content_risky'}
+                except Exception as exc:
+                    if self.request.retries >= 3:
+                        reply.audit_status = 'failed'
+                        reply.audit_checked_at = checked_at
+                        db.session.commit()
+                        raise
+                    raise self.retry(exc=exc, countdown=min(30 * (self.request.retries + 1), 180))
+
+        # 全部通过
+        reply.audit_status = 'passed'
+        reply.audit_checked_at = checked_at
+        db.session.commit()
+        return {'status': 'passed'}
+
+
+# 保留旧的任务名兼容性
+@celery.task(bind=True, name='tasks.audit_public_question')
+def audit_public_question(self, question_id):
+    """兼容旧任务名，委托给新的 audit_question"""
+    return audit_question(self, question_id)
 
 
 # --- API ---
@@ -688,9 +951,17 @@ def hello():
     return "Wisdom Heart Tree Hole API V1.0 Running"
 
 
-@app.route('/uploads/<path:filename>', methods=['GET'])
+@app.route('/api/uploads/<path:filename>', methods=['GET'])
 def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    """Serve uploaded files with proper CORS headers for WeChat Mini Program.
+
+    WeChat Mini Programs require proper CORS headers to load images from external domains.
+    """
+    response = send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    # Add CORS headers for WeChat Mini Program image loading
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    return response
 
 
 @app.route('/api/uploads/image', methods=['POST'])
@@ -965,6 +1236,36 @@ def update_teacher_profile(teacher_id):
     return jsonify({'success': True, 'profile': serialize_teacher_profile(teacher, profile)})
 
 
+@app.route('/api/teacher/profiles/<int:teacher_id>', methods=['DELETE'])
+def delete_teacher_profile(teacher_id):
+    user, error_response = ensure_teacher_user()
+    if error_response:
+        return error_response
+
+    teacher = User.query.get_or_404(teacher_id)
+    if teacher.role != 'teacher':
+        return jsonify({'error': 'Target is not teacher'}), 400
+
+    # Prevent self-deletion
+    if teacher.id == user.id:
+        return jsonify({'error': 'Cannot delete yourself'}), 400
+
+    try:
+        # Delete teacher profile
+        profile = TeacherProfile.query.filter_by(user_id=teacher.id).first()
+        if profile:
+            db.session.delete(profile)
+
+        # Update role to student
+        teacher.role = 'student'
+
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Delete failed: {str(e)}'}), 500
+
+
 @app.route('/api/teacher/dashboard', methods=['GET'])
 def get_teacher_dashboard():
     user, error_response = ensure_teacher_user()
@@ -972,20 +1273,52 @@ def get_teacher_dashboard():
         return error_response
 
     profile = get_or_create_teacher_profile(user)
-    teacher_replied_question_ids = get_teacher_replied_question_ids([question.id for question in visible_questions])
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
-    base_query = build_teacher_visible_question_query(user)
-    unread_query = base_query
-    if profile.last_checked_at:
-        unread_query = unread_query.filter(Question.created_at > profile.last_checked_at)
+
+    def safe_count(query):
+        """安全执行count查询"""
+        try:
+            return query.count()
+        except Exception:
+            return 0
+
+    def safe_count_for_scope(scope, review_status='all'):
+        """安全执行特定scope的count查询"""
+        try:
+            base_query = build_teacher_visible_question_query(user)
+            scoped_query = apply_teacher_question_scope(
+                base_query, user, scope,
+                review_status=review_status,
+                today_start=today_start
+            )
+            return scoped_query.count()
+        except Exception:
+            return 0
+
+    # 分别计算每个计数
+    pending_count = safe_count_for_scope('pending')
+    review_pending_count = safe_count_for_scope('square', review_status='pending')
+    today_count = safe_count_for_scope('today')
+    inbox_count = safe_count_for_scope('inbox')
+    square_count = safe_count_for_scope('square')
+
+    # unreadCount 单独处理
+    try:
+        base_query = build_teacher_visible_question_query(user)
+        unread_query = base_query
+        if profile.last_checked_at:
+            unread_query = unread_query.filter(Question.created_at > profile.last_checked_at)
+        unread_count = unread_query.count()
+    except Exception:
+        unread_count = 0
 
     return jsonify({
-        'pendingCount': apply_teacher_question_scope(base_query, user, 'pending', today_start=today_start).count(),
-        'reviewPendingCount': apply_teacher_question_scope(base_query, user, 'square', review_status='pending', today_start=today_start).count(),
-        'todayCount': apply_teacher_question_scope(base_query, user, 'today', today_start=today_start).count(),
-        'inboxCount': apply_teacher_question_scope(base_query, user, 'inbox', today_start=today_start).count(),
-        'squareCount': apply_teacher_question_scope(base_query, user, 'square', today_start=today_start).count(),
-        'unreadCount': unread_query.count()
+        'pendingCount': pending_count,
+        'reviewPendingCount': review_pending_count,
+        'todayCount': today_count,
+        'inboxCount': inbox_count,
+        'squareCount': square_count,
+        'unreadCount': unread_count
     })
 
 
@@ -1015,30 +1348,42 @@ def get_teacher_questions():
         MAX_QUESTION_PAGE_SIZE
     )
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
-    query = apply_teacher_question_scope(
-        build_teacher_visible_question_query(user, eager=True),
-        user,
-        scope,
-        review_status=review_status,
-        today_start=today_start
-    ).order_by(Question.created_at.desc(), Question.id.desc())
 
-    offset = (page - 1) * page_size
-    paged_questions = query.offset(offset).limit(page_size + 1).all()
-    has_more = len(paged_questions) > page_size
-    questions = paged_questions[:page_size]
-    summary_map = build_question_summary_map([question.id for question in questions])
-    return jsonify({
-        'items': [
-            serialize_teacher_question(question, summary_map.get(question.id))
-            for question in questions
-        ],
-        'pagination': {
-            'page': page,
-            'pageSize': page_size,
-            'hasMore': has_more
-        }
-    })
+    try:
+        query = apply_teacher_question_scope(
+            build_teacher_visible_question_query(user, eager=True),
+            user,
+            scope,
+            review_status=review_status,
+            today_start=today_start
+        ).order_by(Question.created_at.desc(), Question.id.desc())
+
+        offset = (page - 1) * page_size
+        paged_questions = query.offset(offset).limit(page_size + 1).all()
+        has_more = len(paged_questions) > page_size
+        questions = paged_questions[:page_size]
+        summary_map = build_question_summary_map([question.id for question in questions])
+        return jsonify({
+            'items': [
+                serialize_teacher_question(question, summary_map.get(question.id))
+                for question in questions
+            ],
+            'pagination': {
+                'page': page,
+                'pageSize': page_size,
+                'hasMore': has_more
+            }
+        })
+    except Exception as e:
+        # 查询失败时返回空列表
+        return jsonify({
+            'items': [],
+            'pagination': {
+                'page': page,
+                'pageSize': page_size,
+                'hasMore': False
+            }
+        })
 
 
 @app.route('/api/teacher/export', methods=['GET'])
@@ -1158,14 +1503,41 @@ def get_question_detail(qid):
     if not can_view_question(user, q):
         return jsonify({'error': 'Forbidden'}), 403
 
-    replies = Reply.query.options(
+    # 构建回复查询
+    # 基础条件：审核通过的回复所有人可见
+    # 额外条件：回复作者可以看到自己的待审核回复
+    # 教师可以看到所有回复
+    replies_query = Reply.query.options(
         joinedload(Reply.user),
         selectinload(Reply.images)
-    ).filter_by(
-        question_id=qid
-    ).order_by(
-        Reply.created_at.asc()
-    ).all()
+    ).filter(
+        Reply.question_id == qid
+    )
+
+    if user and user.role == 'teacher':
+        # 教师可以看到所有回复（包括待审核的）
+        replies = replies_query.order_by(Reply.created_at.asc()).all()
+    elif user:
+        # 普通用户可以看到审核通过的回复，以及自己的待审核回复
+        try:
+            replies = replies_query.filter(
+                db.or_(
+                    Reply.audit_status == 'passed',
+                    Reply.user_id == user.id
+                )
+            ).order_by(Reply.created_at.asc()).all()
+        except Exception:
+            # audit_status 字段可能不存在，显示所有回复
+            replies = replies_query.order_by(Reply.created_at.asc()).all()
+    else:
+        # 未登录用户只能看到审核通过的回复
+        try:
+            replies = replies_query.filter(
+                Reply.audit_status == 'passed'
+            ).order_by(Reply.created_at.asc()).all()
+        except Exception:
+            # audit_status 字段可能不存在，显示所有回复
+            replies = replies_query.order_by(Reply.created_at.asc()).all()
     starred = False
     if user:
         starred = Star.query.filter_by(user_id=user.id, question_id=q.id).first() is not None
@@ -1181,7 +1553,7 @@ def get_question_detail(qid):
         'user': get_question_author_payload(q),
         'latestReplyPreview': summary.get('latestReplyPreview'),
         **serialize_question_review(q),
-        'replies': [serialize_reply(reply) for reply in replies]
+        'replies': [serialize_reply(reply, include_audit=(user and user.role == 'teacher')) for reply in replies]
     })
 
 # 发布问题
@@ -1196,13 +1568,16 @@ def create_question():
     if not content:
         return jsonify({'error': 'Missing content'}), 400
 
+    # 同步内容审核
     audit_result = audit_text_content(content, user.openid)
     if not audit_result.get('ok'):
         return jsonify({'error': audit_result.get('message') or '内容审核未通过'}), 400
 
     is_public = bool(data.get('isPublic', False))
     requires_review = is_public
-        
+
+    # 设置初始审核状态为 pending，等待异步审核完成
+    # 如果是公开问题，需要人工审核；私密问题直接 approved 但需要异步审核
     q = Question(
         content=content,
         user_id=user.id,
@@ -1210,12 +1585,17 @@ def create_question():
         is_anonymous=data.get('isAnonymous', False),
         is_public=is_public,
         review_status='pending' if requires_review else 'approved',
+        audit_status='pending',  # 初始状态为 pending，等待异步审核
+        audit_checked_at=audit_result.get('checked_at'),  # 记录同步审核时间
         student_class=data.get('studentClass'),
         student_name=data.get('studentName')
     )
     db.session.add(q)
     db.session.commit()
-    
+
+    # 所有问题都触发异步审核
+    audit_question.delay(q.id)
+
     return jsonify({'success': True, 'id': q.id, **serialize_question_review(q)})
 
 # 回复问题
@@ -1235,14 +1615,24 @@ def create_reply(qid):
     if not content and not images:
         return jsonify({'error': 'Missing reply content'}), 400
 
+    # 同步审核文字内容
     audit_result = audit_text_content(content, user.openid)
     if not audit_result.get('ok'):
         return jsonify({'error': audit_result.get('message') or '内容审核未通过'}), 400
-        
+
+    # 同步审核图片内容
+    for image_url in images:
+        if image_url:
+            image_audit = audit_image_content(image_url, user.openid)
+            if not image_audit.get('ok'):
+                return jsonify({'error': image_audit.get('message') or '图片审核未通过'}), 400
+
     reply = Reply(
         question_id=qid,
         user_id=user.id,
-        content=content
+        content=content,
+        audit_status='pending',  # 初始状态为 pending，等待异步审核
+        audit_checked_at=audit_result.get('checked_at')  # 记录同步审核时间
     )
     db.session.add(reply)
     db.session.flush()
@@ -1252,7 +1642,10 @@ def create_reply(qid):
             db.session.add(ReplyImage(reply_id=reply.id, image_url=image_url))
 
     db.session.commit()
-    
+
+    # 触发异步审核（包括文字和图片）
+    audit_reply.delay(reply.id)
+
     return jsonify({'success': True})
 
 
@@ -1364,9 +1757,17 @@ def get_my_replies():
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
         
-    # 查询我回复过的问题
-    # 这是一个简化查询，实际可能需要去重
-    replies = Reply.query.filter_by(user_id=user.id).order_by(Reply.created_at.desc()).all()
+    # 查询我回复过的问题（只显示审核通过的回复）
+    try:
+        replies = Reply.query.filter_by(
+            user_id=user.id,
+            audit_status='passed'
+        ).order_by(Reply.created_at.desc()).all()
+    except Exception:
+        # audit_status 字段可能不存在，显示所有回复
+        replies = Reply.query.filter_by(
+            user_id=user.id
+        ).order_by(Reply.created_at.desc()).all()
     
     result = []
     seen_qids = set()

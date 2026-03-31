@@ -68,10 +68,22 @@ Page({
     });
   },
 
+  onImageError(e) {
+    const { index } = e.currentTarget.dataset;
+    const counselors = this.data.counselors;
+    if (counselors[index]) {
+      counselors[index].avatarError = true;
+      this.setData({ counselors });
+    }
+  },
+
   selectCounselor: function(e) {
     const { id, name, avatar, avatarText } = e.currentTarget.dataset;
+    const index = this.data.counselors.findIndex(c => c.id === id);
+    const finalAvatar = (index !== -1 && this.data.counselors[index].avatarError) ? '' : (avatar || '');
+    
     wx.navigateTo({
-      url: `/pages/post/create?counselorId=${id}&counselorName=${encodeURIComponent(name || '')}&counselorAvatar=${encodeURIComponent(avatar || '')}&counselorAvatarText=${encodeURIComponent(avatarText || '')}`
+      url: `/pages/post/create?counselorId=${id}&counselorName=${encodeURIComponent(name || '')}&counselorAvatar=${encodeURIComponent(finalAvatar)}&counselorAvatarText=${encodeURIComponent(avatarText || '')}`
     });
   }
 })

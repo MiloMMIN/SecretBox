@@ -216,5 +216,53 @@ Page({
         wx.showToast({ title: '邀请码已复制', icon: 'success' });
       }
     });
+  },
+
+  deleteTeacher() {
+    if (this.data.editor.kind !== 'teacher') {
+      wx.showToast({ title: '只能删除已激活的教师', icon: 'none' });
+      return;
+    }
+
+    const teacherId = this.data.editor.id;
+    const teacherName = this.data.editor.nickName;
+
+    wx.showModal({
+      title: '确认删除',
+      content: `确定要删除教师「${teacherName}」吗？删除后该用户将降级为学生身份，其发布的内容不会被删除。`,
+      confirmColor: '#FF5252',
+      success: (modalRes) => {
+        if (!modalRes.confirm) {
+          return;
+        }
+
+        this.setData({ saving: true });
+        this.request({
+          url: `${app.globalData.baseUrl}/teacher/profiles/${teacherId}`,
+          method: 'DELETE'
+        }).then((res) => {
+          this.setData({ saving: false });
+          console.log('Delete response:', res.statusCode, res.data);
+          if (res.statusCode === 200 && res.data.success) {
+            wx.showToast({ title: '删除成功', icon: 'success' });
+            // Remove from list and reset editor
+            const profiles = this.data.profiles.filter(p => p.id !== teacherId);
+            this.setData({
+              profiles,
+              currentIndex: 0,
+              editor: buildEditor(profiles[0]),
+              creating: false
+            });
+            return;
+          }
+          const errorMsg = res.data?.error || `删除失败 (${res.statusCode})`;
+          wx.showToast({ title: errorMsg, icon: 'none' });
+        }).catch((err) => {
+          console.error('Delete error:', err);
+          this.setData({ saving: false });
+          wx.showToast({ title: '网络错误', icon: 'none' });
+        });
+      }
+    });
   }
 })

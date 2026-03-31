@@ -3,7 +3,7 @@
   <!-- 用户信息卡片 -->
   <view class="user-card card">
     <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar" disabled="{{avatarUploading}}">
-      <image wx:if="{{userInfo.avatarUrl}}" class="user-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
+      <image wx:if="{{userInfo.avatarUrl && !userInfo.avatarError}}" class="user-avatar" src="{{userInfo.avatarUrl}}" mode="cover" binderror="onImageError" data-type="user"></image>
       <view wx:else class="user-avatar avatar-placeholder">{{userInfo.nickName ? userInfo.nickName.slice(0, 1) : '微'}}</view>
       <view class="edit-icon">✎</view>
     </button>
@@ -151,7 +151,7 @@
           <block wx:for="{{currentQuestion.replies}}" wx:key="id">
             <view class="detail-reply-item card">
               <view class="detail-reply-user">
-                <image wx:if="{{item.user.avatarUrl}}" class="detail-reply-avatar" src="{{item.user.avatarUrl}}"></image>
+                <image wx:if="{{item.user.avatarUrl && !item.user.avatarError}}" class="detail-reply-avatar" src="{{item.user.avatarUrl}}" binderror="onImageError" data-type="reply" data-index="{{index}}"></image>
                 <view wx:else class="detail-reply-avatar avatar-placeholder">{{item.user.nickname ? item.user.nickname.slice(0, 1) : '微'}}</view>
                 <text class="detail-reply-name">{{item.user.nickname}}</text>
                 <text class="detail-reply-role {{item.user.role === 'teacher' ? 'teacher' : 'student'}}">{{item.user.role === 'teacher' ? '教师' : '学生'}}</text>

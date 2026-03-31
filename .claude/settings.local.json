@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://mouow.asia/uploads/\")"
+    ]
+  }
+}

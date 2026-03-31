@@ -43,6 +43,16 @@ def ensure_schema_updates():
         )
 
     if 'reply' in tables:
+        reply_columns = {column['name'] for column in inspector.get_columns('reply')}
+        if 'audit_status' not in reply_columns:
+            print("检测到 reply 缺少 audit_status，正在补齐...")
+            db.session.execute(text("ALTER TABLE reply ADD COLUMN audit_status VARCHAR(20) NOT NULL DEFAULT 'passed'"))
+            db.session.commit()
+        if 'audit_checked_at' not in reply_columns:
+            print("检测到 reply 缺少 audit_checked_at，正在补齐...")
+            db.session.execute(text("ALTER TABLE reply ADD COLUMN audit_checked_at DATETIME NULL"))
+            db.session.commit()
+
         ensure_index(
             'reply',
             'idx_reply_question_created',

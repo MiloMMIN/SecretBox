@@ -31,7 +31,8 @@
       <view class="card question-card" bindtap="goToDetail" data-id="{{item.id}}">
         <view class="q-header">
           <view class="q-user">
-            <view class="avatar-placeholder small">{{(item.user && item.user.nickName) ? item.user.nickName.slice(0, 1) : '匿'}}</view>
+            <image wx:if="{{item.user && item.user.avatarUrl && !item.user.avatarError}}" class="avatar-placeholder small" src="{{item.user.avatarUrl}}" binderror="onImageError" data-type="list" data-index="{{index}}"></image>
+            <view wx:else class="avatar-placeholder small">{{(item.user && item.user.nickName) ? item.user.nickName.slice(0, 1) : '匿'}}</view>
             <text class="q-user-name">{{item.user && item.user.nickName ? item.user.nickName : '匿名用户'}}</text>
           </view>
           <view class="q-time">{{item.time}}</view>
@@ -112,7 +113,7 @@
           <block wx:for="{{currentQuestion.replies}}" wx:key="id">
             <view class="reply-item card">
               <view class="reply-user">
-                  <image wx:if="{{item.user.avatarUrl}}" class="reply-avatar" src="{{item.user.avatarUrl}}"></image>
+                  <image wx:if="{{item.user.avatarUrl && !item.user.avatarError}}" class="reply-avatar" src="{{item.user.avatarUrl}}" binderror="onImageError" data-type="reply" data-index="{{index}}"></image>
                   <view wx:else class="reply-avatar avatar-placeholder small">{{item.user.nickname ? item.user.nickname.slice(0, 1) : '微'}}</view>
                 <text class="reply-name">{{item.user.nickname}}</text>
                 <text class="reply-role {{item.user.role === 'teacher' ? 'teacher' : 'student'}}">{{item.user.role === 'teacher' ? '教师' : '学生'}}</text>

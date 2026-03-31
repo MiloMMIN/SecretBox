@@ -144,6 +144,25 @@ Page({
     this.loadQuestions();
   },
 
+  onImageError(e) {
+    const { type, index } = e.currentTarget.dataset;
+    if (type === 'list') {
+      const questions = this.data.questions;
+      if (questions[index]) {
+        questions[index].user = questions[index].user || {};
+        questions[index].user.avatarError = true;
+        this.setData({ questions });
+      }
+    } else if (type === 'reply') {
+      const currentQuestion = this.data.currentQuestion;
+      if (currentQuestion.replies && currentQuestion.replies[index]) {
+        currentQuestion.replies[index].user = currentQuestion.replies[index].user || {};
+        currentQuestion.replies[index].user.avatarError = true;
+        this.setData({ currentQuestion });
+      }
+    }
+  },
+
   onReachBottom() {
     if (!app.globalData.isLoggedIn) {
       return;
