@@ -2,7 +2,7 @@
 <view class="container">
   <!-- 用户信息卡片 -->
   <view class="user-card card">
-    <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar" disabled="{{avatarUploading}}">
+    <button class="avatar-btn" bindtap="onChooseAvatar" disabled="{{avatarUploading}}">
       <image wx:if="{{userInfo.avatarUrl && !userInfo.avatarError}}" class="user-avatar" src="{{userInfo.avatarUrl}}" mode="cover" binderror="onImageError" data-type="user"></image>
       <view wx:else class="user-avatar avatar-placeholder">{{userInfo.nickName ? userInfo.nickName.slice(0, 1) : '微'}}</view>
       <view class="edit-icon">✎</view>
@@ -171,7 +171,7 @@
         <view class="reply-compose">
           <view wx:if="{{replyImages.length}}" class="reply-preview-list">
             <view wx:for="{{replyImages}}" wx:key="*this" class="reply-preview-item">
-              <image class="reply-preview-image" src="{{item}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{item}}"></image>
+              <image class="reply-preview-image" src="{{item}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{item}}" data-urls="{{replyImages}}"></image>
               <view class="reply-preview-remove" catchtap="removeReplyImage" data-index="{{index}}">×</view>
             </view>
           </view>

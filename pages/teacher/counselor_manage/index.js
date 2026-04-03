@@ -1,5 +1,9 @@
 const app = getApp();
 
+function normalizeProfile(profile) {
+  return app.normalizeTeacherProfile(profile);
+}
+
 function buildEditor(profile) {
   if (!profile) {
     return {
@@ -14,15 +18,16 @@ function buildEditor(profile) {
     };
   }
 
+  const normalizedProfile = normalizeProfile(profile);
   return {
-    kind: profile.kind || 'teacher',
-    id: profile.id,
-    nickName: profile.nickName || '',
-    avatarUrl: profile.avatarUrl || '',
-    desc: profile.desc || '',
-    isActive: profile.isActive !== false,
-    inviteCode: profile.inviteCode || '',
-    claimed: !!profile.claimed
+    kind: normalizedProfile.kind || 'teacher',
+    id: normalizedProfile.id,
+    nickName: normalizedProfile.nickName || '',
+    avatarUrl: normalizedProfile.avatarUrl || '',
+    desc: normalizedProfile.desc || '',
+    isActive: normalizedProfile.isActive !== false,
+    inviteCode: normalizedProfile.inviteCode || '',
+    claimed: !!normalizedProfile.claimed
   };
 }
 
@@ -61,7 +66,7 @@ Page({
       method: 'GET'
     }).then((res) => {
       if (res.statusCode === 200) {
-        const profiles = res.data || [];
+        const profiles = (res.data || []).map((profile) => normalizeProfile(profile));
         this.setData({
           profiles,
           currentIndex: 0,
@@ -133,9 +138,16 @@ Page({
       header: { Authorization: token },
       success: (res) => {
         this.setData({ uploading: false });
-        const data = JSON.parse(res.data || '{}');
+        let data = {};
+        try {
+          data = JSON.parse(res.data || '{}');
+        } catch (error) {
+          wx.showToast({ title: '上传失败', icon: 'none' });
+          return;
+        }
+
         if (res.statusCode === 200 && data.success) {
-          this.setData({ 'editor.avatarUrl': data.url });
+          this.setData({ 'editor.avatarUrl': app.normalizeFileUrl(data.url) });
           return;
         }
         wx.showToast({ title: data.error || '上传失败', icon: 'none' });
@@ -169,11 +181,12 @@ Page({
     }).then((res) => {
       this.setData({ saving: false });
       if (res.statusCode === 200 && res.data.success) {
+        const profile = normalizeProfile(res.data.profile);
         const profiles = [...this.data.profiles];
         if (this.data.creating) {
-          profiles.unshift(res.data.profile);
+          profiles.unshift(profile);
         } else {
-          profiles[this.data.currentIndex] = res.data.profile;
+          profiles[this.data.currentIndex] = profile;
         }
 
         const nextIndex = this.data.creating ? 0 : this.data.currentIndex;
@@ -181,14 +194,14 @@ Page({
           profiles,
           currentIndex: nextIndex,
           creating: false,
-          editor: buildEditor(res.data.profile)
+          editor: buildEditor(profile)
         });
 
-        if (res.data.profile.kind === 'teacher' && app.globalData.userInfo && app.globalData.userInfo.id === res.data.profile.id) {
+        if (profile.kind === 'teacher' && app.globalData.userInfo && app.globalData.userInfo.id === profile.id) {
           const userInfo = {
             ...app.globalData.userInfo,
-            nickName: res.data.profile.nickName,
-            avatarUrl: res.data.profile.avatarUrl || app.globalData.userInfo.avatarUrl
+            nickName: profile.nickName,
+            avatarUrl: profile.avatarUrl || app.globalData.userInfo.avatarUrl
           };
           app.globalData.userInfo = userInfo;
           wx.setStorageSync('userInfo', userInfo);

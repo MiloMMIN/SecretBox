@@ -9,7 +9,7 @@ function normalizeUserInfo(userInfo) {
   return {
     ...userInfo,
     nickName: userInfo.nickName || userInfo.nickname || '微信用户',
-    avatarUrl: userInfo.avatarUrl || userInfo.avatar_url || '',
+    avatarUrl: app.normalizeFileUrl(userInfo.avatarUrl || userInfo.avatar_url || ''),
     role: userInfo.role || 'student'
   };
 }
@@ -112,20 +112,19 @@ Page({
   },
 
   // --- 头像昵称修改 ---
-  onChooseAvatar(e) {
-    const { avatarUrl } = e.detail;
-
+  onChooseAvatar() {
     if (this.data.avatarUploading) {
       return;
     }
 
-    this.setData({ avatarUploading: true });
-    wx.showLoading({ title: '上传头像中...' });
-    app.uploadAvatar(avatarUrl).then((remoteAvatarUrl) => {
-      this.setData({
-        'userInfo.avatarUrl': remoteAvatarUrl
-      });
-      return this.updateUserProfile({ avatarUrl: remoteAvatarUrl }, false);
+    let uploadStarted = false;
+    app.pickAvatarImage().then((avatarUrl) => {
+      uploadStarted = true;
+      this.setData({ avatarUploading: true });
+      wx.showLoading({ title: '上传头像中...' });
+      return app.uploadAvatar(avatarUrl);
+    }).then((remoteAvatarUrl) => {
+      return this.updateUserProfile({ avatarUrl: remoteAvatarUrl }, false, false);
     }).then(() => {
       this.setData({ avatarUploading: false });
       wx.hideLoading();
@@ -134,8 +133,14 @@ Page({
         icon: 'success'
       });
     }).catch((error) => {
-      this.setData({ avatarUploading: false });
-      wx.hideLoading();
+      if (app.isUserCancelled(error) && !uploadStarted) {
+        return;
+      }
+
+      if (uploadStarted) {
+        this.setData({ avatarUploading: false });
+        wx.hideLoading();
+      }
       wx.showToast({
         title: error?.message || '头像上传失败',
         icon: 'none'
@@ -159,11 +164,14 @@ Page({
       });
 
       if (nickName && nickName !== currentNickName) {
-        this.updateUserProfile();
+        const updateTask = this.updateUserProfile({ nickName });
+        if (updateTask && typeof updateTask.catch === 'function') {
+          updateTask.catch(() => {});
+        }
       }
   },
 
-  updateUserProfile(overrides = {}, showSuccess = true) {
+  updateUserProfile(overrides = {}, showSuccess = true, showError = true) {
       const token = wx.getStorageSync('token');
       if (!token) {
         wx.showToast({
@@ -188,10 +196,12 @@ Page({
         }
         return userInfo;
       }).catch((error) => {
-        wx.showToast({
-          title: error?.message || '更新失败',
-          icon: 'none'
-        });
+        if (showError) {
+          wx.showToast({
+            title: error?.message || '更新失败',
+            icon: 'none'
+          });
+        }
         throw error;
       });
   },
@@ -402,7 +412,7 @@ Page({
         this.setData({ teacherLoading: false });
         if (res.statusCode === 200) {
           const data = res.data || {};
-          this.setData({ teacherQuestions: data.items || [] });
+          this.setData({ teacherQuestions: (data.items || []).map((item) => app.normalizeQuestion(item)) });
           this.markTeacherNotificationsRead();
           return;
         }
@@ -437,7 +447,7 @@ Page({
         wx.hideLoading();
         if (res.statusCode === 200) {
           this.setData({
-            currentQuestion: res.data,
+            currentQuestion: app.normalizeQuestion(res.data),
             showDetail: true
           });
           return;
@@ -525,9 +535,17 @@ Page({
           Authorization: token
         },
         success: (res) => {
-          const data = JSON.parse(res.data || '{}');
+          let data = {};
+          try {
+            data = JSON.parse(res.data || '{}');
+          } catch (error) {
+            this.setData({ uploadingReplyImage: false });
+            wx.showToast({ title: '图片上传失败', icon: 'none' });
+            return;
+          }
+
           if (res.statusCode === 200 && data.success) {
-            uploaded.push(data.url);
+            uploaded.push(app.normalizeFileUrl(data.url));
             uploadNext(index + 1);
             return;
           }
@@ -554,10 +572,10 @@ Page({
 
   previewReplyImage(e) {
     const url = e.currentTarget.dataset.url;
-    const urls = e.currentTarget.dataset.urls || this.data.replyImages;
+    const urls = e.currentTarget.dataset.urls;
     wx.previewImage({
       current: url,
-      urls
+      urls: urls && urls.length ? urls : [url]
     });
   },
 

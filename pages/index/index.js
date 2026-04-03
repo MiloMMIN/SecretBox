@@ -40,10 +40,20 @@ Page({
   },
 
   // --- 登录逻辑 ---
-  onChooseAvatar(e) {
-    const { avatarUrl } = e.detail;
-    this.setData({
-      'userInfo.avatarUrl': avatarUrl
+  onChooseAvatar() {
+    app.pickAvatarImage().then((avatarUrl) => {
+      this.setData({
+        'userInfo.avatarUrl': avatarUrl
+      });
+    }).catch((error) => {
+      if (app.isUserCancelled(error)) {
+        return;
+      }
+
+      wx.showToast({
+        title: error?.message || '选择头像失败',
+        icon: 'none'
+      });
     });
   },
 
@@ -69,14 +79,17 @@ Page({
     app.login(this.data.userInfo).then(user => {
       wx.hideLoading();
       this.setData({ showLoginModal: false, loginSubmitting: false });
-      wx.showToast({ title: '欢迎回来', icon: 'success' });
+      wx.showToast({
+        title: user?.avatarSyncFailed ? '登录成功，请到我的重试头像' : '欢迎回来',
+        icon: user?.avatarSyncFailed ? 'none' : 'success'
+      });
       this.loadQuestions();
     }).catch(err => {
       wx.hideLoading();
       this.setData({ loginSubmitting: false });
       console.error(err);
       wx.showToast({
-        title: typeof err === 'string' ? err : '登录失败',
+        title: typeof err === 'string' ? err : (err?.message || err?.errMsg || '登录失败'),
         icon: 'none'
       });
     });
@@ -110,10 +123,11 @@ Page({
           const payload = res.data || {};
           const items = Array.isArray(payload) ? payload : (payload.items || []);
           const pagination = Array.isArray(payload) ? null : (payload.pagination || {});
+          const normalizedItems = items.map((item) => app.normalizeQuestion(item));
           this.setData({
-            questions: append ? [...this.data.questions, ...items] : items,
+            questions: append ? [...this.data.questions, ...normalizedItems] : normalizedItems,
             page: targetPage,
-            hasMore: pagination ? !!pagination.hasMore : (items.length >= this.data.pageSize)
+            hasMore: pagination ? !!pagination.hasMore : (normalizedItems.length >= this.data.pageSize)
           });
           return;
         }
@@ -188,7 +202,7 @@ Page({
         wx.hideLoading();
         if (res.statusCode === 200) {
           this.setData({
-            currentQuestion: res.data,
+            currentQuestion: app.normalizeQuestion(res.data),
             showDetail: true
           });
         }
@@ -259,9 +273,20 @@ Page({
           'Authorization': token
         },
         success: (res) => {
-          const data = JSON.parse(res.data || '{}');
+          let data = {};
+          try {
+            data = JSON.parse(res.data || '{}');
+          } catch (error) {
+            this.setData({ uploadingReplyImage: false });
+            wx.showToast({
+              title: '图片上传失败',
+              icon: 'none'
+            });
+            return;
+          }
+
           if (res.statusCode === 200 && data.success) {
-            uploaded.push(data.url);
+            uploaded.push(app.normalizeFileUrl(data.url));
             uploadNext(index + 1);
             return;
           }
@@ -294,9 +319,10 @@ Page({
 
   previewReplyImage(e) {
     const url = e.currentTarget.dataset.url;
+    const urls = e.currentTarget.dataset.urls;
     wx.previewImage({
       current: url,
-      urls: this.data.replyImages
+      urls: urls && urls.length ? urls : [url]
     });
   },
 
