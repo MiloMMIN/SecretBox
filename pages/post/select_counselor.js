@@ -10,6 +10,21 @@ const STAR_TREE_HOLE = {
   isTreeHole: true
 };
 
+function normalizeCounselor(teacher) {
+  const profile = typeof app.normalizeTeacherProfile === 'function'
+    ? app.normalizeTeacherProfile(teacher)
+    : (teacher || {});
+  const name = profile.nickName || teacher?.nickName || teacher?.nickname || teacher?.display_name || '未命名教师';
+
+  return {
+    id: profile.id ?? teacher?.id ?? null,
+    name,
+    avatar: profile.avatarUrl || teacher?.avatarUrl || teacher?.avatar_url || '',
+    avatarText: name.slice(0, 1) || '教',
+    desc: profile.desc || teacher?.desc || teacher?.description || '已认证教师'
+  };
+}
+
 Page({
   data: {
     counselors: []
@@ -41,13 +56,7 @@ Page({
           return;
         }
 
-        const teachers = res.data.map((teacher) => ({
-          id: teacher.id,
-          name: teacher.nickName,
-          avatar: teacher.avatarUrl || '',
-          avatarText: (teacher.nickName || '教').slice(0, 1),
-          desc: teacher.desc || '已认证教师'
-        }));
+        const teachers = res.data.map((teacher) => normalizeCounselor(teacher));
 
         this.setData({
           counselors: [

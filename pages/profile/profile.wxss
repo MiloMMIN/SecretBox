@@ -5,33 +5,10 @@
 
 .user-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 50rpx 40rpx;
   background: linear-gradient(135deg, #FFF, #F9F9F9);
   margin-bottom: 30rpx;
-}
-
-.avatar-btn {
-  padding: 0;
-  margin: 0;
-  background: none;
-  border: none;
-  position: relative;
-  width: 140rpx;
-  height: 140rpx;
-  margin-right: 36rpx;
-}
-
-.avatar-btn::after {
-  border: none;
-}
-
-.user-avatar {
-  width: 140rpx;
-  height: 140rpx;
-  border-radius: 50%;
-  border: 6rpx solid white;
-  box-shadow: var(--shadow-md);
 }
 
 .avatar-placeholder {
@@ -44,32 +21,19 @@
   font-weight: 700;
 }
 
-.edit-icon {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  background: rgba(0,0,0,0.5);
-  color: white;
-  width: 40rpx;
-  height: 40rpx;
-  border-radius: 50%;
-  font-size: 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .user-info {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: flex-start;
 }
 
 .name-row {
   display: flex;
   align-items: center;
   margin-bottom: 16rpx;
+  width: 100%;
 }
 
 .user-name-input {
@@ -79,17 +43,12 @@
   border-bottom: 1px dashed transparent;
   padding-bottom: 4rpx;
   transition: all 0.3s;
-  width: 300rpx;
+  width: 100%;
+  max-width: 360rpx;
 }
 
 .user-name-input:focus {
   border-bottom-color: var(--primary-green);
-}
-
-.edit-hint {
-  font-size: 28rpx;
-  color: #ccc;
-  margin-left: 10rpx;
 }
 
 .user-role {
@@ -101,12 +60,6 @@
   display: inline-block;
   font-weight: 500;
   align-self: flex-start;
-}
-
-.avatar-uploading-tip {
-  margin-top: 12rpx;
-  font-size: 22rpx;
-  color: #78909C;
 }
 
 .menu-list {
@@ -535,8 +488,8 @@
 }
 
 .send-btn {
-  background: var(--primary-green);
-  color: white;
+  background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+  box-shadow: 0 10rpx 24rpx rgba(102, 187, 106, 0.26);
 }
 
 .reply-input {
@@ -547,6 +500,16 @@
   padding: 0 28rpx;
   font-size: 28rpx;
   color: var(--text-main);
+}
+
+.send-btn:active {
+  transform: scale(0.96);
+}
+
+.send-icon {
+  color: #FFFFFF;
+  font-size: 34rpx;
+  transform: translateX(2rpx) rotate(12deg);
 }
 
 .count {

@@ -159,6 +159,7 @@ Page({
     });
   },
 
+
   saveProfile() {
     this.setData({ saving: true });
     const isInvite = this.data.editor.kind === 'invite';
@@ -200,8 +201,7 @@ Page({
         if (profile.kind === 'teacher' && app.globalData.userInfo && app.globalData.userInfo.id === profile.id) {
           const userInfo = {
             ...app.globalData.userInfo,
-            nickName: profile.nickName,
-            avatarUrl: profile.avatarUrl || app.globalData.userInfo.avatarUrl
+            nickName: profile.nickName
           };
           app.globalData.userInfo = userInfo;
           wx.setStorageSync('userInfo', userInfo);

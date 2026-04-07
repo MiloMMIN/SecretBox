@@ -7,11 +7,12 @@
 
   <button class="add-btn" bindtap="createTeacherInvite">新增教师</button>
 
-  <view wx:if="{{editor.id}}" class="editor-card">
+  <view wx:if="{{creating || editor.id}}" class="editor-card">
     <view class="avatar-area">
       <image wx:if="{{editor.avatarUrl}}" class="avatar" src="{{editor.avatarUrl}}" mode="aspectFill"></image>
       <view wx:else class="avatar placeholder">{{editor.nickName ? editor.nickName.slice(0, 1) : '教'}}</view>
-      <button class="pick-avatar-btn" bindtap="chooseAvatar">{{uploading ? '上传中...' : '更换照片'}}</button>
+      <button class="pick-avatar-btn" bindtap="chooseAvatar" disabled="{{uploading}}">{{uploading ? '上传中...' : (editor.avatarUrl ? '更换头像' : '设置头像')}}</button>
+      <view class="hint avatar-hint">仅用于投递页展示，不影响账号头像。</view>
     </view>
 
     <view class="form-group">

@@ -1,0 +1,35 @@
+<view
+  class="welcome-page"
+  style="padding-top: {{topPadding}}px; padding-bottom: {{bottomPadding}}px;"
+>
+  <view class="ambient ambient-peach"></view>
+  <view class="ambient ambient-mint"></view>
+  <view class="ambient ambient-cream"></view>
+
+  <view class="hero-card">
+    <view class="logo-shell">
+      <view class="logo-glow"></view>
+      <view class="logo-frame">
+        <image
+          class="logo-image"
+          src="../../assets/images/college-logo.png"
+          mode="aspectFit"
+        />
+      </view>
+    </view>
+
+    <view class="title-group">
+      <view class="hero-title">智心树洞</view>
+      <view class="hero-subtitle">每个人都是世界的一个春天</view>
+    </view>
+
+    <button
+      class="enter-button"
+      bindtap="enterApp"
+      loading="{{entering}}"
+      disabled="{{entering}}"
+    >
+      轻触进入
+    </button>
+  </view>
+</view>

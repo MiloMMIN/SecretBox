@@ -265,32 +265,19 @@
   margin-bottom: 40rpx;
 }
 
-.avatar-wrapper {
+.login-mark {
   width: 140rpx;
   height: 140rpx;
-  padding: 0;
-  background: none;
-  border-radius: 50%;
   margin-bottom: 30rpx;
-  overflow: hidden;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+  color: white;
+  font-size: 56rpx;
+  font-weight: 700;
   box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.1);
-}
-
-.avatar {
-  width: 100%;
-  height: 100%;
-}
-
-.placeholder-avatar {
-  width: 100%;
-  height: 100%;
-  font-size: 48rpx;
-}
-
-.login-uploading-tip {
-  margin: -10rpx 0 24rpx;
-  font-size: 24rpx;
-  color: #78909C;
 }
 
 .nickname-input {
@@ -464,6 +451,7 @@
 .reply-compose-row {
   display: flex;
   align-items: center;
+  gap: 16rpx;
 }
 
 .reply-preview-list {
@@ -522,13 +510,28 @@
   border-radius: 36rpx;
   padding: 0 30rpx;
   font-size: 28rpx;
-  margin-right: 20rpx;
 }
 
 .send-btn {
-  color: var(--primary-green);
-  font-weight: bold;
-  padding: 10rpx 20rpx;
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+  box-shadow: 0 10rpx 24rpx rgba(102, 187, 106, 0.26);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.send-btn:active {
+  transform: scale(0.96);
+}
+
+.send-icon {
+  color: #FFFFFF;
+  font-size: 34rpx;
+  transform: translateX(2rpx) rotate(12deg);
 }
 
 /* 悬浮提问按钮 (FAB) */

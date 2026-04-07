@@ -2,15 +2,16 @@
 const app = getApp()
 
 function normalizeUserInfo(userInfo) {
-  if (!userInfo) {
+  const normalized = typeof app.normalizeUserInfo === 'function' ? app.normalizeUserInfo(userInfo) : userInfo;
+  if (!normalized) {
     return { nickName: '微信用户', avatarUrl: '', role: 'student' };
   }
 
   return {
-    ...userInfo,
-    nickName: userInfo.nickName || userInfo.nickname || '微信用户',
-    avatarUrl: app.normalizeFileUrl(userInfo.avatarUrl || userInfo.avatar_url || ''),
-    role: userInfo.role || 'student'
+    ...normalized,
+    nickName: normalized.nickName || normalized.nickname || '微信用户',
+    avatarUrl: '',
+    role: normalized.role || 'student'
   };
 }
 
@@ -79,8 +80,7 @@ Page({
     currentQuestion: null,
     replyContent: '',
     replyImages: [],
-    uploadingReplyImage: false,
-    avatarUploading: false
+    uploadingReplyImage: false
   },
 
   onLoad() {
@@ -111,42 +111,7 @@ Page({
     }
   },
 
-  // --- 头像昵称修改 ---
-  onChooseAvatar() {
-    if (this.data.avatarUploading) {
-      return;
-    }
-
-    let uploadStarted = false;
-    app.pickAvatarImage().then((avatarUrl) => {
-      uploadStarted = true;
-      this.setData({ avatarUploading: true });
-      wx.showLoading({ title: '上传头像中...' });
-      return app.uploadAvatar(avatarUrl);
-    }).then((remoteAvatarUrl) => {
-      return this.updateUserProfile({ avatarUrl: remoteAvatarUrl }, false, false);
-    }).then(() => {
-      this.setData({ avatarUploading: false });
-      wx.hideLoading();
-      wx.showToast({
-        title: '头像已更新',
-        icon: 'success'
-      });
-    }).catch((error) => {
-      if (app.isUserCancelled(error) && !uploadStarted) {
-        return;
-      }
-
-      if (uploadStarted) {
-        this.setData({ avatarUploading: false });
-        wx.hideLoading();
-      }
-      wx.showToast({
-        title: error?.message || '头像上传失败',
-        icon: 'none'
-      });
-    });
-  },
+  // --- 昵称修改 ---
 
   onNicknameChange(e) {
     const nickName = e.detail.value;
@@ -182,8 +147,7 @@ Page({
       }
 
       const payload = {
-        nickName: (overrides.nickName !== undefined ? overrides.nickName : this.data.userInfo.nickName || '').trim(),
-        avatarUrl: overrides.avatarUrl !== undefined ? overrides.avatarUrl : (this.data.userInfo.avatarUrl || '')
+        nickName: (overrides.nickName !== undefined ? overrides.nickName : this.data.userInfo.nickName || '').trim()
       };
 
       return app.updateCurrentUserProfile(payload).then((userInfo) => {

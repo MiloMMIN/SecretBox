@@ -73,6 +73,11 @@
   font-size: 28rpx;
 }
 
+.avatar-hint {
+  margin-top: 14rpx;
+  text-align: center;
+}
+
 .delete-btn {
   margin-top: 20rpx;
   background: #FFEBEE;

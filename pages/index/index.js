@@ -13,7 +13,6 @@ Page({
     showLoginModal: false,
     loginSubmitting: false,
     userInfo: {
-      avatarUrl: '',
       nickName: ''
     },
     // 详情页相关
@@ -40,22 +39,6 @@ Page({
   },
 
   // --- 登录逻辑 ---
-  onChooseAvatar() {
-    app.pickAvatarImage().then((avatarUrl) => {
-      this.setData({
-        'userInfo.avatarUrl': avatarUrl
-      });
-    }).catch((error) => {
-      if (app.isUserCancelled(error)) {
-        return;
-      }
-
-      wx.showToast({
-        title: error?.message || '选择头像失败',
-        icon: 'none'
-      });
-    });
-  },
 
   onNicknameChange(e) {
     this.setData({
@@ -64,9 +47,9 @@ Page({
   },
 
   confirmLogin() {
-    const { avatarUrl, nickName } = this.data.userInfo;
-    if (!avatarUrl || !nickName) {
-      wx.showToast({ title: '请完善信息', icon: 'none' });
+    const nickName = (this.data.userInfo.nickName || '').trim();
+    if (!nickName) {
+      wx.showToast({ title: '请输入昵称', icon: 'none' });
       return;
     }
 
@@ -76,12 +59,12 @@ Page({
     
     this.setData({ loginSubmitting: true });
     wx.showLoading({ title: '登录中...' });
-    app.login(this.data.userInfo).then(user => {
+    app.login(this.data.userInfo).then(() => {
       wx.hideLoading();
       this.setData({ showLoginModal: false, loginSubmitting: false });
       wx.showToast({
-        title: user?.avatarSyncFailed ? '登录成功，请到我的重试头像' : '欢迎回来',
-        icon: user?.avatarSyncFailed ? 'none' : 'success'
+        title: '欢迎回来',
+        icon: 'success'
       });
       this.loadQuestions();
     }).catch(err => {

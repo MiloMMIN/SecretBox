@@ -1,6 +1,18 @@
 // pages/post/create.js
 const app = getApp();
 
+function safeDecode(value) {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    return value;
+  }
+}
+
 Page({
   data: {
     counselorId: null,
@@ -14,7 +26,7 @@ Page({
   onLoad: function (options) {
     this.setData({
       counselorId: options.counselorId,
-      counselorName: options.counselorName || '教师'
+      counselorName: safeDecode(options.counselorName) || '教师'
     });
   },
 

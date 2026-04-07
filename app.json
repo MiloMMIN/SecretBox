@@ -1,5 +1,6 @@
 {
   "pages": [
+    "pages/welcome/index",
     "pages/index/index",
     "pages/post/select_counselor",
     "pages/post/create",

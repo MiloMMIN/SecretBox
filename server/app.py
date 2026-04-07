@@ -8,7 +8,7 @@ import csv
 import io
 import uuid
 from datetime import datetime, timedelta
-from sqlalchemy import UniqueConstraint, func, or_
+from sqlalchemy import UniqueConstraint, and_, func, or_
 from sqlalchemy.orm import joinedload, selectinload
 from werkzeug.utils import secure_filename
 from urllib.parse import urlparse
@@ -270,7 +270,7 @@ def serialize_user(user):
         'id': user.id,
         'nickName': user.nickname,
         'nickname': user.nickname,
-        'avatarUrl': ensure_absolute_file_url(user.avatar_url),
+        'avatarUrl': '',
         'role': user.role
     }
 
@@ -281,7 +281,7 @@ def get_or_create_teacher_profile(user):
         profile = TeacherProfile(
             user_id=user.id,
             display_name=user.nickname,
-            avatar_url=user.avatar_url,
+            avatar_url='',
             description='已认证教师'
         )
         db.session.add(profile)
@@ -292,7 +292,7 @@ def get_or_create_teacher_profile(user):
 def serialize_teacher_profile(user, profile=None):
     profile = profile or TeacherProfile.query.filter_by(user_id=user.id).first()
     display_name = (profile.display_name if profile and profile.display_name else user.nickname) or '未命名教师'
-    avatar_url = (profile.avatar_url if profile and profile.avatar_url else user.avatar_url) or ''
+    avatar_url = (profile.avatar_url if profile and profile.avatar_url else '') or ''
     description = (profile.description if profile and profile.description else '已认证教师')
     is_active = True if profile is None else profile.is_active
     return {
@@ -318,6 +318,21 @@ def serialize_teacher_invite(invite):
     }
 
 
+def prefer_https_url(url):
+    if not url:
+        return ''
+
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or '').lower()
+    if parsed.scheme != 'http':
+        return url
+    if hostname in {'localhost', '127.0.0.1', '::1'}:
+        return url
+    if hostname.startswith('10.') or hostname.startswith('192.168.'):
+        return url
+    return parsed._replace(scheme='https').geturl()
+
+
 def build_file_url(filename):
     """Build a full URL for an uploaded file.
 
@@ -331,9 +346,9 @@ def build_file_url(filename):
         base_url = request.host_url.rstrip('/')
         
     if base_url.endswith('/api'):
-        return f"{base_url}/uploads/{filename}"
+        return prefer_https_url(f"{base_url}/uploads/{filename}")
     else:
-        return f"{base_url}/api/uploads/{filename}"
+        return prefer_https_url(f"{base_url}/api/uploads/{filename}")
 
 
 def ensure_absolute_file_url(url):
@@ -346,16 +361,16 @@ def ensure_absolute_file_url(url):
     
     # If it's a local WeChat path or already doesn't contain /uploads/, return as is
     if '/uploads/' not in url:
-        return url
+        return prefer_https_url(url)
     
     # Extract filename and rebuild using current host
     try:
         filename = url.rsplit('/uploads/', 1)[-1]
         # Remove any query parameters if present
         filename = filename.split('?')[0]
-        return build_file_url(filename)
+        return prefer_https_url(build_file_url(filename))
     except Exception:
-        return url
+        return prefer_https_url(url)
 
 
 def sanitize_avatar_url(file_url):
@@ -396,6 +411,17 @@ def remove_uploaded_file_by_url(file_url):
             pass
 
 
+def get_visible_user_avatar_url(user):
+    if not user or user.role != 'teacher':
+        return ''
+
+    profile = getattr(user, 'teacher_profile', None)
+    if not profile or not profile.avatar_url:
+        return ''
+
+    return ensure_absolute_file_url(profile.avatar_url)
+
+
 def get_authenticated_user():
     token = request.headers.get('Authorization')
     if not token:
@@ -413,7 +439,7 @@ def get_question_author_payload(question):
 
     return {
         'nickName': question.user.nickname or '微信用户',
-        'avatarUrl': ensure_absolute_file_url(question.user.avatar_url),
+        'avatarUrl': get_visible_user_avatar_url(question.user),
         'role': question.user.role
     }
 
@@ -556,7 +582,7 @@ def serialize_reply(reply, include_audit=False):
         'images': [ensure_absolute_file_url(image.image_url) for image in reply.images],
         'user': {
             'nickname': reply.user.nickname,
-            'avatarUrl': ensure_absolute_file_url(reply.user.avatar_url),
+            'avatarUrl': get_visible_user_avatar_url(reply.user),
             'role': reply.user.role
         }
     }
@@ -1028,19 +1054,16 @@ def login():
     
     # 更新用户信息
     if userInfo:
-        user.nickname = userInfo.get('nickName')
-        avatar_url = sanitize_avatar_url(userInfo.get('avatarUrl'))
-        if avatar_url:
-            user.avatar_url = avatar_url
+        nickname = (userInfo.get('nickName') or '').strip()
+        if nickname:
+            user.nickname = nickname[:64]
 
     db.session.flush()
     if user.role == 'teacher':
         profile = get_or_create_teacher_profile(user)
         if user.nickname and not profile.display_name:
             profile.display_name = user.nickname
-        if user.avatar_url and not profile.avatar_url:
-            profile.avatar_url = user.avatar_url
-    
+
     db.session.commit()
     
     return jsonify({
@@ -1066,22 +1089,14 @@ def update_me_profile():
 
     data = request.json or {}
     nickname = (data.get('nickName') or data.get('nickname') or '').strip()
-    avatar_url = sanitize_avatar_url(data.get('avatarUrl'))
-    old_avatar_url = user.avatar_url
 
     if nickname:
         user.nickname = nickname[:64]
-    if avatar_url:
-        user.avatar_url = avatar_url[:256]
-        if old_avatar_url and old_avatar_url != user.avatar_url:
-            remove_uploaded_file_by_url(old_avatar_url)
 
     if user.role == 'teacher':
         profile = get_or_create_teacher_profile(user)
         if nickname:
             profile.display_name = user.nickname
-        if avatar_url:
-            profile.avatar_url = user.avatar_url
 
     db.session.commit()
     return jsonify({'success': True, 'userInfo': serialize_user(user)})
@@ -1099,7 +1114,7 @@ def upgrade_me_role():
         user.role = 'teacher'
         profile = get_or_create_teacher_profile(user)
         profile.display_name = (teacher_invite.display_name or user.nickname or '未命名教师')[:64]
-        profile.avatar_url = teacher_invite.avatar_url or user.avatar_url
+        profile.avatar_url = teacher_invite.avatar_url or ''
         profile.description = (teacher_invite.description or '已认证教师')[:255]
         profile.is_active = teacher_invite.is_active
         teacher_invite.claimed_user_id = user.id
@@ -1116,8 +1131,6 @@ def upgrade_me_role():
     profile = get_or_create_teacher_profile(user)
     if user.nickname and not profile.display_name:
         profile.display_name = user.nickname
-    if user.avatar_url and not profile.avatar_url:
-        profile.avatar_url = user.avatar_url
     db.session.commit()
     return jsonify({'success': True, 'userInfo': serialize_user(user)})
 
@@ -1158,7 +1171,7 @@ def create_teacher_invite():
 
     data = request.json or {}
     display_name = (data.get('nickName') or '').strip() or '待激活教师'
-    avatar_url = (data.get('avatarUrl') or '').strip()
+    avatar_url = sanitize_avatar_url(data.get('avatarUrl'))
     description = (data.get('desc') or '').strip() or '待教师本人激活'
     is_active = bool(data.get('isActive', True))
     invite_code = uuid.uuid4().hex[:8].upper()
@@ -1166,7 +1179,7 @@ def create_teacher_invite():
     invite = TeacherInvite(
         invite_code=invite_code,
         display_name=display_name[:64],
-        avatar_url=avatar_url[:512],
+        avatar_url=avatar_url[:512] if avatar_url else '',
         description=description[:255],
         is_active=is_active,
         created_by_user_id=user.id
@@ -1185,7 +1198,7 @@ def update_teacher_invite(invite_id):
     invite = TeacherInvite.query.get_or_404(invite_id)
     data = request.json or {}
     display_name = (data.get('nickName') or '').strip()
-    avatar_url = (data.get('avatarUrl') or '').strip()
+    avatar_url = sanitize_avatar_url(data.get('avatarUrl'))
     description = (data.get('desc') or '').strip()
     is_active = data.get('isActive')
 
@@ -1215,7 +1228,7 @@ def update_teacher_profile(teacher_id):
     data = request.json or {}
     profile = get_or_create_teacher_profile(teacher)
     display_name = (data.get('nickName') or '').strip()
-    avatar_url = (data.get('avatarUrl') or '').strip()
+    avatar_url = sanitize_avatar_url(data.get('avatarUrl'))
     description = (data.get('desc') or '').strip()
     is_active = data.get('isActive')
 
@@ -1230,7 +1243,6 @@ def update_teacher_profile(teacher_id):
 
     if teacher.id == user.id:
         teacher.nickname = profile.display_name or teacher.nickname
-        teacher.avatar_url = profile.avatar_url or teacher.avatar_url
 
     db.session.commit()
     return jsonify({'success': True, 'profile': serialize_teacher_profile(teacher, profile)})

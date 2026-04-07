@@ -2,18 +2,11 @@
 <view class="container">
   <!-- 用户信息卡片 -->
   <view class="user-card card">
-    <button class="avatar-btn" bindtap="onChooseAvatar" disabled="{{avatarUploading}}">
-      <image wx:if="{{userInfo.avatarUrl && !userInfo.avatarError}}" class="user-avatar" src="{{userInfo.avatarUrl}}" mode="cover" binderror="onImageError" data-type="user"></image>
-      <view wx:else class="user-avatar avatar-placeholder">{{userInfo.nickName ? userInfo.nickName.slice(0, 1) : '微'}}</view>
-      <view class="edit-icon">✎</view>
-    </button>
     <view class="user-info">
       <view class="name-row">
-        <input type="nickname" class="user-name-input" value="{{userInfo.nickName}}" placeholder="点击设置昵称" bind:change="onNicknameChange" bindblur="onNicknameBlur"/>
-        <view class="edit-hint">✎</view>
+        <input type="nickname" class="user-name-input" value="{{userInfo.nickName}}" placeholder="点击修改昵称" bindinput="onNicknameChange" bindblur="onNicknameBlur" />
       </view>
       <view class="user-role">{{userInfo.role === 'teacher' ? '教师' : '学生'}}</view>
-      <view wx:if="{{avatarUploading}}" class="avatar-uploading-tip">头像上传中，请稍候...</view>
     </view>
   </view>
 
@@ -185,7 +178,9 @@
               confirm-type="send"
               bindconfirm="submitReply"
             />
-            <view class="send-btn" bindtap="submitReply">发送</view>
+            <view class="send-btn" bindtap="submitReply">
+              <text class="send-icon">✈</text>
+            </view>
           </view>
         </view>
       </view>

@@ -1,28 +1,164 @@
 // app.js
 import config from './config.js';
 
+function trimTrailingSlash(value) {
+  return (value || '').replace(/\/+$/, '');
+}
+
+function getBaseOrigin() {
+  return trimTrailingSlash(config.baseUrl).replace(/\/api$/i, '');
+}
+
+function isLocalHost(hostname) {
+  if (!hostname) {
+    return false;
+  }
+
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '::1'
+    || hostname.startsWith('10.')
+    || hostname.startsWith('192.168.')
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+}
+
+function preferHttpsUrl(url) {
+  if (!/^http:\/\//i.test(url)) {
+    return url;
+  }
+
+  const match = url.match(/^http:\/\/([^\/?#]+)/i);
+  const hostname = ((match && match[1]) || '').split(':')[0].toLowerCase();
+  if (isLocalHost(hostname)) {
+    return url;
+  }
+
+  return `https://${url.slice('http://'.length)}`;
+}
+
+function normalizeFileUrl(fileUrl) {
+  if (!fileUrl || typeof fileUrl !== 'string') {
+    return '';
+  }
+
+  const normalized = fileUrl.trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (
+    normalized.startsWith('wxfile://')
+    || normalized.startsWith('http://tmp/')
+    || normalized.startsWith('https://tmp/')
+    || normalized.startsWith('/tmp/')
+  ) {
+    return normalized;
+  }
+
+  const baseOrigin = getBaseOrigin();
+  if (normalized.startsWith('/api/uploads/')) {
+    return preferHttpsUrl(`${baseOrigin}${normalized}`);
+  }
+  if (normalized.startsWith('/uploads/')) {
+    return preferHttpsUrl(`${baseOrigin}/api${normalized}`);
+  }
+  if (normalized.startsWith('uploads/')) {
+    return preferHttpsUrl(`${baseOrigin}/api/${normalized}`);
+  }
+
+  return preferHttpsUrl(normalized);
+}
+
+function normalizeDisplayUser(userInfo, options = {}) {
+  const allowTeacherAvatar = options.allowTeacherAvatar === true;
+  const role = userInfo?.role || 'student';
+  const fallbackName = role === 'teacher' ? '教师用户' : '微信用户';
+  const nickName = userInfo?.nickName || userInfo?.nickname || fallbackName;
+  const nickname = userInfo?.nickname || nickName;
+  const avatarUrl = allowTeacherAvatar && role === 'teacher'
+    ? normalizeFileUrl(userInfo?.avatarUrl || userInfo?.avatar_url || '')
+    : '';
+
+  return {
+    ...(userInfo || {}),
+    nickName,
+    nickname,
+    avatarUrl,
+    role
+  };
+}
+
 function normalizeUserInfo(userInfo) {
   if (!userInfo) {
     return null;
   }
 
+  return normalizeDisplayUser(userInfo);
+}
+
+function normalizeReply(reply) {
   return {
-    ...userInfo,
-    nickName: userInfo.nickName || userInfo.nickname || '微信用户',
-    avatarUrl: userInfo.avatarUrl || userInfo.avatar_url || '',
-    role: userInfo.role || 'student'
+    ...(reply || {}),
+    content: reply?.content || '',
+    images: Array.isArray(reply?.images) ? reply.images.map((item) => normalizeFileUrl(item)).filter(Boolean) : [],
+    user: normalizeDisplayUser(reply?.user, { allowTeacherAvatar: true })
   };
 }
 
-function isLocalAvatarPath(path) {
-  if (!path || typeof path !== 'string') {
-    return false;
-  }
+function normalizeQuestion(question) {
+  const normalizedReplies = Array.isArray(question?.replies)
+    ? question.replies.map((reply) => normalizeReply(reply))
+    : [];
 
-  return path.startsWith('wxfile://') || path.startsWith('http://tmp/') || path.startsWith('https://tmp/') || path.startsWith('/tmp/');
+  return {
+    ...(question || {}),
+    content: question?.content || '',
+    time: question?.time || '',
+    stars: Number(question?.stars || 0),
+    comments: Number(question?.comments || normalizedReplies.length || 0),
+    hasTeacherReply: !!question?.hasTeacherReply,
+    latestReplyPreview: question?.latestReplyPreview || question?.reply || '',
+    isPublic: !!question?.isPublic,
+    reviewStatus: question?.reviewStatus || 'pending',
+    reviewStatusText: question?.reviewStatusText || '',
+    starred: !!question?.starred,
+    user: normalizeDisplayUser(question?.user || question?.author, { allowTeacherAvatar: true }),
+    author: normalizeDisplayUser(question?.author || question?.user, { allowTeacherAvatar: true }),
+    replies: normalizedReplies
+  };
+}
+
+function normalizeTeacherProfile(profile) {
+  return {
+    ...(profile || {}),
+    kind: profile?.kind || 'teacher',
+    id: profile?.id ?? null,
+    nickName: profile?.nickName || profile?.display_name || '未命名教师',
+    avatarUrl: normalizeFileUrl(profile?.avatarUrl || profile?.avatar_url || ''),
+    desc: profile?.desc || profile?.description || '',
+    isActive: profile?.isActive !== false,
+    inviteCode: profile?.inviteCode || profile?.invite_code || '',
+    claimed: !!profile?.claimed
+  };
 }
 
 App({
+  normalizeFileUrl(fileUrl) {
+    return normalizeFileUrl(fileUrl);
+  },
+
+  normalizeUserInfo(userInfo) {
+    return normalizeUserInfo(userInfo);
+  },
+
+  normalizeQuestion(question) {
+    return normalizeQuestion(question);
+  },
+
+  normalizeTeacherProfile(profile) {
+    return normalizeTeacherProfile(profile);
+  },
+
   onLaunch() {
     this.checkLogin();
   },
@@ -31,17 +167,15 @@ App({
     const token = wx.getStorageSync('token');
     const cachedUserInfo = wx.getStorageSync('userInfo');
     if (!token) {
-      // 未登录，引导去授权
-      // 由于 onLaunch 是异步的，这里通常不做强制跳转，而是在页面 onShow 检查
-      // 或者设置全局标记
       this.globalData.isLoggedIn = false;
-    } else {
-      this.globalData.isLoggedIn = true;
-      if (cachedUserInfo) {
-        this.globalData.userInfo = normalizeUserInfo(cachedUserInfo);
-      }
-      this.fetchCurrentUser();
+      return;
     }
+
+    this.globalData.isLoggedIn = true;
+    if (cachedUserInfo) {
+      this.globalData.userInfo = normalizeUserInfo(cachedUserInfo);
+    }
+    this.fetchCurrentUser();
   },
 
   fetchCurrentUser() {
@@ -54,7 +188,7 @@ App({
       url: `${this.globalData.baseUrl}/me`,
       method: 'GET',
       header: {
-        'Authorization': token
+        Authorization: token
       },
       success: (response) => {
         if (response.statusCode === 200) {
@@ -88,7 +222,7 @@ App({
       url: `${this.globalData.baseUrl}/teacher/dashboard`,
       method: 'GET',
       header: {
-        'Authorization': token
+        Authorization: token
       },
       success: (response) => {
         if (response.statusCode === 200 && response.data?.unreadCount > 0) {
@@ -109,86 +243,15 @@ App({
     return token ? { Authorization: token } : {};
   },
 
-  compressAvatarIfNeeded(filePath) {
-    return new Promise((resolve, reject) => {
-      wx.getFileInfo({
-        filePath,
-        success: (info) => {
-          if (info.size <= 200 * 1024) {
-            resolve(filePath);
-            return;
-          }
-
-          wx.compressImage({
-            src: filePath,
-            quality: info.size > 1024 * 1024 ? 45 : 60,
-            success: (compressRes) => {
-              resolve(compressRes.tempFilePath || filePath);
-            },
-            fail: reject
-          });
-        },
-        fail: reject
-      });
-    });
-  },
-
-  uploadAvatar(filePath) {
-    return new Promise((resolve, reject) => {
-      const token = wx.getStorageSync('token');
-      if (!token) {
-        reject(new Error('未登录，无法上传头像'));
-        return;
-      }
-
-      this.compressAvatarIfNeeded(filePath).then((compressedPath) => {
-        wx.getFileInfo({
-          filePath: compressedPath,
-          success: (info) => {
-            if (info.size > 512 * 1024) {
-              reject(new Error('头像压缩后仍大于 512KB，请重新选择图片'));
-              return;
-            }
-
-            wx.uploadFile({
-              url: `${this.globalData.baseUrl}/uploads/image?purpose=avatar`,
-              filePath: compressedPath,
-              name: 'file',
-              header: {
-                Authorization: token
-              },
-              success: (uploadRes) => {
-                let data = {};
-                try {
-                  data = JSON.parse(uploadRes.data || '{}');
-                } catch (error) {
-                  reject(error);
-                  return;
-                }
-
-                if (uploadRes.statusCode === 200 && data.success && data.url) {
-                  resolve(data.url);
-                  return;
-                }
-
-                reject(new Error(data.error || '头像上传失败'));
-              },
-              fail: reject
-            });
-          },
-          fail: reject
-        });
-      }).catch(reject);
-    });
-  },
-
   updateCurrentUserProfile(payload) {
     return new Promise((resolve, reject) => {
       wx.request({
         url: `${this.globalData.baseUrl}/me/profile`,
         method: 'PUT',
         header: this.getAuthHeader(),
-        data: payload,
+        data: {
+          nickName: (payload?.nickName || payload?.nickname || '').trim()
+        },
         success: (response) => {
           if (response.statusCode === 200 && response.data?.success) {
             const userInfo = normalizeUserInfo(response.data.userInfo);
@@ -205,54 +268,41 @@ App({
     });
   },
 
-  syncAvatarAfterLogin(userInfo) {
-    if (!isLocalAvatarPath(userInfo?.avatarUrl)) {
-      return Promise.resolve(this.globalData.userInfo);
-    }
-
-    return this.uploadAvatar(userInfo.avatarUrl).then((remoteAvatarUrl) => this.updateCurrentUserProfile({
-      nickName: userInfo.nickName || this.globalData.userInfo?.nickName || '',
-      avatarUrl: remoteAvatarUrl
-    }));
-  },
-
   login(userInfo) {
+    const nickName = (userInfo?.nickName || userInfo?.nickname || '').trim();
     return new Promise((resolve, reject) => {
       wx.login({
-        success: res => {
-          if (res.code) {
-            wx.request({
-              url: `${this.globalData.baseUrl}/login`,
-              method: 'POST',
-              data: {
-                code: res.code,
-                userInfo: userInfo
-              },
-              success: (response) => {
-                if (response.statusCode === 200) {
-                  const { token, userInfo: serverUser } = response.data;
-                  wx.setStorageSync('token', token);
-                  this.globalData.userInfo = normalizeUserInfo(serverUser);
-                  this.globalData.isLoggedIn = true;
-                  wx.setStorageSync('userInfo', this.globalData.userInfo);
-                  this.syncAvatarAfterLogin(userInfo).then((finalUserInfo) => {
-                    this.refreshTeacherNotificationBadge();
-                    resolve(finalUserInfo || this.globalData.userInfo);
-                  }).catch(() => {
-                    this.refreshTeacherNotificationBadge();
-                    resolve(this.globalData.userInfo);
-                  });
-                } else {
-                  reject(response.data.error);
-                }
-              },
-              fail: (err) => {
-                reject(err);
-              }
-            });
-          } else {
-            reject('登录失败！' + res.errMsg);
+        success: (res) => {
+          if (!res.code) {
+            reject(`登录失败！${res.errMsg}`);
+            return;
           }
+
+          wx.request({
+            url: `${this.globalData.baseUrl}/login`,
+            method: 'POST',
+            data: {
+              code: res.code,
+              userInfo: {
+                nickName
+              }
+            },
+            success: (response) => {
+              if (response.statusCode === 200) {
+                const { token, userInfo: serverUser } = response.data;
+                wx.setStorageSync('token', token);
+                this.globalData.userInfo = normalizeUserInfo(serverUser);
+                this.globalData.isLoggedIn = true;
+                wx.setStorageSync('userInfo', this.globalData.userInfo);
+                this.refreshTeacherNotificationBadge();
+                resolve(this.globalData.userInfo);
+                return;
+              }
+
+              reject(response.data?.error || '登录失败');
+            },
+            fail: reject
+          });
         }
       });
     });
@@ -263,4 +313,4 @@ App({
     isLoggedIn: false,
     baseUrl: config.baseUrl
   }
-})
+});

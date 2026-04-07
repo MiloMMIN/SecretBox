@@ -31,8 +31,6 @@
       <view class="card question-card" bindtap="goToDetail" data-id="{{item.id}}">
         <view class="q-header">
           <view class="q-user">
-            <image wx:if="{{item.user && item.user.avatarUrl && !item.user.avatarError}}" class="avatar-placeholder small" src="{{item.user.avatarUrl}}" binderror="onImageError" data-type="list" data-index="{{index}}"></image>
-            <view wx:else class="avatar-placeholder small">{{(item.user && item.user.nickName) ? item.user.nickName.slice(0, 1) : '匿'}}</view>
             <text class="q-user-name">{{item.user && item.user.nickName ? item.user.nickName : '匿名用户'}}</text>
           </view>
           <view class="q-time">{{item.time}}</view>
@@ -71,14 +69,10 @@
   <view class="login-mask" wx:if="{{showLoginModal}}">
     <view class="login-card">
       <view class="login-title">欢迎来到智心树洞</view>
-      <view class="login-desc">为了提供更好的服务，我们需要获取您的头像和昵称。</view>
-        <button class="avatar-wrapper" bindtap="onChooseAvatar" disabled="{{loginSubmitting}}">
-        <image wx:if="{{userInfo.avatarUrl}}" class="avatar" src="{{userInfo.avatarUrl}}"></image>
-        <view wx:else class="avatar placeholder-avatar">{{userInfo.nickName ? userInfo.nickName.slice(0, 1) : '微'}}</view>
-      </button> 
-        <view wx:if="{{loginSubmitting}}" class="login-uploading-tip">正在登录并上传头像，请稍候...</view>
-      <input type="nickname" class="nickname-input" placeholder="请输入昵称" bind:change="onNicknameChange"/>
-        <button class="login-btn" bindtap="confirmLogin" disabled="{{loginSubmitting}}">{{loginSubmitting ? '处理中...' : '授权登录'}}</button>
+      <view class="login-mark">树</view>
+      <view class="login-desc">请输入昵称完成登录。</view>
+      <input type="nickname" class="nickname-input" placeholder="请输入昵称" value="{{userInfo.nickName}}" bindinput="onNicknameChange" />
+      <button class="login-btn" bindtap="confirmLogin" disabled="{{loginSubmitting}}">{{loginSubmitting ? '处理中...' : '授权登录'}}</button>
     </view>
   </view>
 
@@ -113,8 +107,6 @@
           <block wx:for="{{currentQuestion.replies}}" wx:key="id">
             <view class="reply-item card">
               <view class="reply-user">
-                  <image wx:if="{{item.user.avatarUrl && !item.user.avatarError}}" class="reply-avatar" src="{{item.user.avatarUrl}}" binderror="onImageError" data-type="reply" data-index="{{index}}"></image>
-                  <view wx:else class="reply-avatar avatar-placeholder small">{{item.user.nickname ? item.user.nickname.slice(0, 1) : '微'}}</view>
                 <text class="reply-name">{{item.user.nickname}}</text>
                 <text class="reply-role {{item.user.role === 'teacher' ? 'teacher' : 'student'}}">{{item.user.role === 'teacher' ? '教师' : '学生'}}</text>
                 <text class="reply-time">{{item.time}}</text>
@@ -149,7 +141,9 @@
               confirm-type="send"
               bindconfirm="submitReply"
             />
-            <view class="send-btn" bindtap="submitReply">发送</view>
+            <view class="send-btn" bindtap="submitReply">
+              <text class="send-icon">✈</text>
+            </view>
           </view>
         </view>
       </view>
@@ -157,7 +151,7 @@
   </page-container>
 
   <!-- 悬浮提问按钮 -->
-  <view class="fab-btn" bindtap="onTapPost">
+  <view wx:if="{{!showDetail}}" class="fab-btn" bindtap="onTapPost">
     <text>+</text>
   </view>
 

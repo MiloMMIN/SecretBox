@@ -11,3 +11,5 @@ unpackage/
 server/config.env
 server/__pycache__/
 server/**/*.pyc
+**/__pycache__/
+**/*.pyc
