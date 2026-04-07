@@ -1,35 +1,87 @@
 <view
-  class="welcome-page"
+  class="welcome-page {{entering ? 'is-entering' : ''}}"
   style="padding-top: {{topPadding}}px; padding-bottom: {{bottomPadding}}px;"
 >
-  <view class="ambient ambient-peach"></view>
-  <view class="ambient ambient-mint"></view>
-  <view class="ambient ambient-cream"></view>
+  <view class="page-grain"></view>
+  <view class="ambient ambient-earth"></view>
+  <view class="ambient ambient-moss"></view>
+  <view class="ambient ambient-mist"></view>
+  <view class="tunnel-ring tunnel-ring-outer"></view>
+  <view class="tunnel-ring tunnel-ring-middle"></view>
+  <view class="tunnel-ring tunnel-ring-inner"></view>
+  <view class="enter-shadow"></view>
 
-  <view class="hero-card">
-    <view class="logo-shell">
-      <view class="logo-glow"></view>
-      <view class="logo-frame">
-        <image
-          class="logo-image"
-          src="../../assets/images/college-logo.png"
-          mode="aspectFit"
-        />
+  <view class="main-stage">
+    <view class="hero-copy">
+      <view class="hero-label">树洞入口</view>
+      <view class="hero-title">智心树洞</view>
+      <view class="hero-subtitle">
+        先在门口慢慢转一圈，再把想说的话轻轻放进去。
       </view>
     </view>
 
-    <view class="title-group">
-      <view class="hero-title">智心树洞</view>
-      <view class="hero-subtitle">每个人都是世界的一个春天</view>
+    <view class="portal-stage" bindtap="enterApp">
+      <view class="orbit-track orbit-track-primary">
+        <view
+          wx:for="{{orbitPanels}}"
+          wx:key="id"
+          class="orbit-card orbit-card-{{item.slot}}"
+        >
+          <view class="orbit-card-body">
+            <view class="orbit-card-sheet">
+              <view class="orbit-card-tag">{{item.tag}}</view>
+              <view class="orbit-card-title">{{item.title}}</view>
+              <view class="orbit-card-desc">{{item.desc}}</view>
+              <view class="orbit-card-lines">
+                <view class="line short"></view>
+                <view class="line medium"></view>
+                <view class="line long"></view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="orbit-track orbit-track-secondary">
+        <view class="orbit-node orbit-node-a"></view>
+        <view class="orbit-node orbit-node-b"></view>
+        <view class="orbit-node orbit-node-c"></view>
+        <view class="orbit-node orbit-node-d"></view>
+      </view>
+
+      <view class="portal-core">
+        <view class="core-shadow"></view>
+        <view class="core-halo"></view>
+        <view class="core-ring core-ring-outer"></view>
+        <view class="core-ring core-ring-inner"></view>
+
+        <view class="logo-shell">
+          <view class="logo-frame">
+            <image
+              class="logo-image"
+              src="../../assets/images/college-logo.png"
+              mode="aspectFit"
+            />
+          </view>
+        </view>
+
+        <view class="core-caption">轻触，进入树洞深处</view>
+      </view>
+    </view>
+
+    <view class="footer-copy">
+      <view class="footer-title">让想说的话，先轻一点落下来</view>
+      <view class="footer-desc">
+        围着光慢慢旋转，再顺着洞口安静地走进去。
+      </view>
     </view>
 
     <button
       class="enter-button"
       bindtap="enterApp"
-      loading="{{entering}}"
       disabled="{{entering}}"
     >
-      轻触进入
+      {{entering ? '正在进入树洞' : '进入树洞'}}
     </button>
   </view>
 </view>
