@@ -1,0 +1,157 @@
+<view class="appointment-page">
+  <view class="ambient ambient-one"></view>
+  <view class="ambient ambient-two"></view>
+  <view class="paper-noise"></view>
+
+  <scroll-view scroll-y class="page-scroll">
+    <view class="hero-panel">
+      <view class="hero-kicker">心坊预约</view>
+      <view class="hero-title">预约智梦心坊</view>
+      <view class="hero-desc">每个人都能为你的世界带来一季春光</view>
+    </view>
+
+    <view class="section-card calendar-card">
+      <view class="section-head">
+        <view>
+          <view class="section-title">本月时段</view>
+          <view class="section-subtitle">已预约的时间会自动锁定，避免多人同时占用空间。</view>
+        </view>
+      </view>
+
+      <view class="month-bar">
+        <view class="month-switch" bindtap="changeMonth" data-step="-1">‹</view>
+        <view class="month-center">
+          <view class="month-label">{{monthLabel}}</view>
+          <view class="month-meta">{{selectedDateLabel || '轻点日期查看当天剩余时段'}}</view>
+        </view>
+        <view class="month-switch" bindtap="changeMonth" data-step="1">›</view>
+      </view>
+
+      <view class="week-row">
+        <view class="week-item" wx:for="{{weekLabels}}" wx:key="*this">{{item}}</view>
+      </view>
+
+      <view class="day-grid">
+        <view
+          wx:for="{{monthDays}}"
+          wx:key="dateKey"
+          class="day-cell {{item.isCurrentMonth ? '' : 'is-out'}} {{item.isSelected ? 'is-selected' : ''}} {{item.isToday ? 'is-today' : ''}} {{item.isPast ? 'is-past' : ''}}"
+          bindtap="pickDate"
+          data-date="{{item.dateKey}}"
+        >
+          <view class="day-number">{{item.day}}</view>
+          <view wx:if="{{item.count > 0}}" class="day-badge">{{item.count}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-head">
+        <view>
+          <view class="section-title">预约老师</view>
+          <view class="section-subtitle">先选一位想谈话的老师，再锁定时间。</view>
+        </view>
+      </view>
+
+      <scroll-view scroll-x class="teacher-scroll" enable-flex="true">
+        <view class="teacher-list">
+          <view
+            wx:for="{{teachers}}"
+            wx:key="id"
+            class="teacher-item {{form.teacherId === item.id ? 'is-active' : ''}}"
+            bindtap="selectTeacher"
+            data-id="{{item.id}}"
+            data-name="{{item.name}}"
+          >
+            <image
+              wx:if="{{item.avatar && !item.avatarError}}"
+              class="teacher-avatar"
+              src="{{item.avatar}}"
+              mode="aspectFill"
+              binderror="onTeacherImageError"
+              data-id="{{item.id}}"
+            ></image>
+            <view wx:else class="teacher-avatar teacher-avatar-fallback">{{item.avatarText}}</view>
+            <view class="teacher-name">{{item.name}}</view>
+            <view class="teacher-desc">{{item.desc}}</view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-head">
+        <view>
+          <view class="section-title">填写预约信息</view>
+          <view class="section-subtitle">{{selectedDateLabel}}</view>
+          <view wx:if="{{form.teacherName}}" class="picked-teacher">{{form.teacherName}}</view>
+        </view>
+      </view>
+
+      <view class="field-list">
+        <view class="field-item">
+          <view class="field-label">预约人姓名</view>
+          <input
+            class="field-input"
+            placeholder="请输入姓名"
+            maxlength="20"
+            value="{{form.studentName}}"
+            bindinput="onStudentNameInput"
+          />
+        </view>
+
+        <view class="field-item">
+          <view class="field-label">预约人班级</view>
+          <input
+            class="field-input"
+            placeholder="例如：23计应2班"
+            maxlength="32"
+            value="{{form.studentClass}}"
+            bindinput="onStudentClassInput"
+          />
+        </view>
+      </view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-head">
+        <view>
+          <view class="section-title">选择时间</view>
+          <view class="section-subtitle">默认每次半小时，可预约时间为 8:00-11:00、14:00-16:00。</view>
+          <view class="slot-picked-date">{{slotDisplayText}}</view>
+        </view>
+        <view class="slot-summary">已占用 {{selectedDayAppointments.length}} / {{timeSlots.length}}</view>
+      </view>
+
+      <view class="slot-grid">
+        <view
+          wx:for="{{timeSlots}}"
+          wx:key="start"
+          class="slot-card {{item.occupied ? 'is-occupied' : ''}} {{item.selected ? 'is-selected' : ''}} {{item.expired ? 'is-expired' : ''}}"
+          bindtap="selectSlot"
+          data-start="{{item.start}}"
+          data-occupied="{{item.occupied}}"
+          data-expired="{{item.expired}}"
+        >
+          <view class="slot-time">{{item.start}} - {{item.end}}</view>
+          <view class="slot-state">{{item.expired ? '已过时' : (item.occupied ? '已被占用' : (item.selected ? '已选择' : '可预约'))}}</view>
+          <view class="slot-meta">{{item.expired ? '请改约其他时段' : (item.occupied ? item.teacherName : '30 分钟面谈')}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{selectedDayAppointments.length > 0}}" class="occupied-panel">
+        <view class="occupied-title">当天已占用</view>
+        <view wx:for="{{selectedDayAppointments}}" wx:key="id" class="occupied-row">
+          <text class="occupied-time">{{item.slotStart}} - {{item.slotEnd}}</text>
+          <text class="occupied-teacher">{{item.teacherName}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="submit-wrap">
+      <button class="submit-btn" bindtap="submitAppointment" disabled="{{submitting}}">
+        {{submitting ? '正在提交预约' : '确认预约'}}
+      </button>
+    </view>
+  </scroll-view>
+</view>

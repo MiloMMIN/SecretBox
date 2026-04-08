@@ -7,8 +7,12 @@ import urllib.parse
 import csv
 import io
 import uuid
+import base64
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 from sqlalchemy import UniqueConstraint, and_, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 from werkzeug.utils import secure_filename
 from urllib.parse import urlparse
@@ -55,6 +59,8 @@ class Config:
         openid.strip() for openid in os.getenv('TEACHER_OPENIDS', '').split(',') if openid.strip()
     ]
     TEACHER_INVITE_CODE = os.getenv('TEACHER_INVITE_CODE', '').strip()
+    DINGTALK_WEBHOOK_URL = os.getenv('DINGTALK_WEBHOOK_URL', '').strip()
+    DINGTALK_WEBHOOK_SECRET = os.getenv('DINGTALK_WEBHOOK_SECRET', '').strip()
 
 app = Flask(__name__)
 
@@ -73,6 +79,12 @@ WECHAT_ACCESS_TOKEN_CACHE = {
 }
 DEFAULT_QUESTION_PAGE_SIZE = 20
 MAX_QUESTION_PAGE_SIZE = 50
+LOCAL_TIME_OFFSET_HOURS = 8
+APPOINTMENT_SLOT_STARTS = [
+    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+    '14:00', '14:30', '15:00', '15:30'
+]
+APPOINTMENT_DURATION_MINUTES = 30
 
 
 def parse_positive_int(value, default):
@@ -81,6 +93,27 @@ def parse_positive_int(value, default):
         return parsed if parsed > 0 else default
     except (TypeError, ValueError):
         return default
+
+
+def get_local_now():
+    return datetime.utcnow() + timedelta(hours=LOCAL_TIME_OFFSET_HOURS)
+
+
+def get_appointment_slot_end(slot_start):
+    if slot_start not in APPOINTMENT_SLOT_STARTS:
+        return None
+
+    slot_dt = datetime.strptime(slot_start, '%H:%M')
+    return (slot_dt + timedelta(minutes=APPOINTMENT_DURATION_MINUTES)).strftime('%H:%M')
+
+
+def parse_month_key(month_key):
+    try:
+        month_date = datetime.strptime(month_key, '%Y-%m')
+    except (TypeError, ValueError):
+        return None
+
+    return datetime(month_date.year, month_date.month, 1)
 
 
 def is_placeholder_wechat_value(value):
@@ -316,6 +349,86 @@ def serialize_teacher_invite(invite):
         'inviteCode': invite.invite_code,
         'claimed': invite.claimed_user_id is not None
     }
+
+
+def get_teacher_display_name(user, profile=None):
+    if not user:
+        return '未命名教师'
+
+    active_profile = profile
+    if active_profile is None:
+        active_profile = getattr(user, 'teacher_profile', None)
+
+    return (active_profile.display_name if active_profile and active_profile.display_name else user.nickname) or '未命名教师'
+
+
+def serialize_appointment(appointment):
+    teacher_profile = getattr(appointment.teacher, 'teacher_profile', None) if appointment.teacher else None
+    return {
+        'id': appointment.id,
+        'date': appointment.appointment_date.strftime('%Y-%m-%d'),
+        'slotStart': appointment.slot_start,
+        'slotEnd': appointment.slot_end,
+        'teacherId': appointment.teacher_id,
+        'teacherName': get_teacher_display_name(appointment.teacher, teacher_profile),
+        'durationMinutes': appointment.duration_minutes,
+        'status': appointment.status
+    }
+
+
+def build_dingtalk_webhook_url():
+    webhook_url = app.config.get('DINGTALK_WEBHOOK_URL', '').strip()
+    webhook_secret = app.config.get('DINGTALK_WEBHOOK_SECRET', '').strip()
+    if not webhook_url:
+        return '', webhook_secret
+
+    if not webhook_secret:
+        return webhook_url, webhook_secret
+
+    timestamp = str(int(datetime.utcnow().timestamp() * 1000))
+    string_to_sign = f'{timestamp}\n{webhook_secret}'
+    digest = hmac.new(
+        webhook_secret.encode('utf-8'),
+        string_to_sign.encode('utf-8'),
+        digestmod=hashlib.sha256
+    ).digest()
+    sign = urllib.parse.quote_plus(base64.b64encode(digest).decode('utf-8'))
+    separator = '&' if '?' in webhook_url else '?'
+    return f'{webhook_url}{separator}timestamp={timestamp}&sign={sign}', webhook_secret
+
+
+def send_dingtalk_appointment_notification(appointment):
+    webhook_url, _ = build_dingtalk_webhook_url()
+    if not webhook_url:
+        return 'skipped', '预约已经保存，但尚未配置钉钉 webhook，当前不会推送到群聊。'
+
+    appointment_time = f"{appointment.appointment_date.strftime('%Y-%m-%d')} {appointment.slot_start}-{appointment.slot_end}"
+    teacher_name = get_teacher_display_name(appointment.teacher, getattr(appointment.teacher, 'teacher_profile', None) if appointment.teacher else None)
+    payload = {
+        'msgtype': 'text',
+        'text': {
+            'content': (
+                '【智梦心坊】\n'
+                '【您有一条梦团订单，请查收】\n'
+                f'预约人：{appointment.student_name}\n'
+                f'预约人班级：{appointment.student_class}\n'
+                f'预约时间：{appointment_time}\n'
+                f'预约老师：{teacher_name}'
+            )
+        }
+    }
+
+    try:
+        response = requests.post(webhook_url, json=payload, timeout=5)
+        response.raise_for_status()
+        body = response.json() if response.content else {}
+    except Exception as exc:
+        return 'failed', f'预约已保存，但钉钉通知发送失败：{exc}'
+
+    if isinstance(body, dict) and body.get('errcode') not in {None, 0, '0'}:
+        return 'failed', f"预约已保存，但钉钉通知发送失败：{body.get('errmsg') or '未知错误'}"
+
+    return 'sent', '钉钉通知已发送'
 
 
 def prefer_https_url(url):
@@ -712,16 +825,14 @@ def apply_teacher_question_scope(query, user, scope, review_status='all', today_
     elif scope == 'today':
         query = query.filter(Question.created_at >= today_start)
     elif scope == 'inbox':
-        # 树洞信箱：显示所有教师可见的问题，包括私密咨询和公开投稿
+        # 树洞信箱只展示私密树洞消息，不混入广场内容
         query = query.filter(
-            or_(
-                # 私密咨询（指定教师且非公开）
-                and_(
+            and_(
+                or_(
                     Question.counselor_id == user.id,
-                    Question.is_public.is_(False)
+                    Question.counselor_id == 0
                 ),
-                # 公开投稿（待审核的也需要教师处理）
-                Question.is_public.is_(True)
+                Question.is_public.is_(False)
             )
         )
     elif scope == 'square':
@@ -855,6 +966,27 @@ class TeacherInvite(db.Model):
     created_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     claimed_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Appointment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    student_name = db.Column(db.String(64), nullable=False)
+    student_class = db.Column(db.String(64), nullable=False)
+    appointment_date = db.Column(db.Date, nullable=False)
+    slot_start = db.Column(db.String(5), nullable=False)
+    slot_end = db.Column(db.String(5), nullable=False)
+    duration_minutes = db.Column(db.Integer, nullable=False, default=APPOINTMENT_DURATION_MINUTES)
+    status = db.Column(db.String(20), nullable=False, default='booked')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    creator = db.relationship('User', foreign_keys=[user_id], backref=db.backref('appointments', lazy=True))
+    teacher = db.relationship('User', foreign_keys=[teacher_id], backref=db.backref('appointment_assignments', lazy=True))
+
+    __table_args__ = (
+        UniqueConstraint('appointment_date', 'slot_start', name='uq_appointment_room_slot'),
+    )
 
 # 自动建表 (移至 init_db.py 中统一处理，避免 import 时触发连接错误)
 # with app.app_context():
@@ -1145,6 +1277,113 @@ def get_teachers():
             result.append(serialize_teacher_profile(teacher, profile))
     db.session.commit()
     return jsonify(result)
+
+
+@app.route('/api/appointments/calendar', methods=['GET'])
+def get_appointment_calendar():
+    month_key = (request.args.get('month') or '').strip()
+    local_now = get_local_now()
+    month_date = parse_month_key(month_key or local_now.strftime('%Y-%m'))
+    if not month_date:
+        return jsonify({'error': 'Invalid month'}), 400
+
+    next_month = datetime(month_date.year + (1 if month_date.month == 12 else 0), 1 if month_date.month == 12 else month_date.month + 1, 1)
+    try:
+        appointments = Appointment.query.options(
+            joinedload(Appointment.teacher).joinedload(User.teacher_profile)
+        ).filter(
+            Appointment.appointment_date >= month_date.date(),
+            Appointment.appointment_date < next_month.date(),
+            Appointment.status == 'booked'
+        ).order_by(Appointment.appointment_date.asc(), Appointment.slot_start.asc()).all()
+    except Exception as exc:
+        print(f'Warning: appointment calendar query failed: {exc}')
+        appointments = []
+
+    return jsonify({
+        'month': month_date.strftime('%Y-%m'),
+        'monthLabel': f"{month_date.year} 年 {month_date.month:02d} 月",
+        'appointments': [serialize_appointment(item) for item in appointments]
+    })
+
+
+@app.route('/api/appointments', methods=['POST'])
+def create_appointment():
+    data = request.json or {}
+    user = get_authenticated_user()
+    student_name = (data.get('studentName') or '').strip()
+    student_class = (data.get('studentClass') or '').strip()
+    date_value = (data.get('date') or '').strip()
+    slot_start = (data.get('slotStart') or '').strip()
+
+    try:
+        teacher_id = int(data.get('teacherId'))
+    except (TypeError, ValueError):
+        teacher_id = 0
+
+    if not student_name:
+        return jsonify({'error': 'Missing studentName'}), 400
+    if not student_class:
+        return jsonify({'error': 'Missing studentClass'}), 400
+    if not date_value:
+        return jsonify({'error': 'Missing date'}), 400
+
+    slot_end = get_appointment_slot_end(slot_start)
+    if not slot_end:
+        return jsonify({'error': 'Invalid slotStart'}), 400
+
+    try:
+        appointment_date = datetime.strptime(date_value, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date'}), 400
+
+    teacher = User.query.options(joinedload(User.teacher_profile)).filter_by(id=teacher_id, role='teacher').first()
+    if not teacher:
+        return jsonify({'error': 'Teacher not found'}), 404
+
+    teacher_profile = getattr(teacher, 'teacher_profile', None)
+    if teacher_profile and teacher_profile.is_active is False:
+        return jsonify({'error': 'Teacher is unavailable'}), 400
+
+    local_now = get_local_now()
+    if appointment_date < local_now.date():
+        return jsonify({'error': 'Cannot book past dates'}), 400
+
+    if appointment_date == local_now.date():
+        appointment_start = datetime.strptime(f'{date_value} {slot_start}', '%Y-%m-%d %H:%M')
+        if appointment_start <= local_now:
+            return jsonify({'error': 'Selected slot has passed'}), 400
+
+    appointment = Appointment(
+        user_id=user.id if user else None,
+        teacher_id=teacher.id,
+        student_name=student_name[:64],
+        student_class=student_class[:64],
+        appointment_date=appointment_date,
+        slot_start=slot_start,
+        slot_end=slot_end,
+        duration_minutes=APPOINTMENT_DURATION_MINUTES,
+        status='booked'
+    )
+
+    db.session.add(appointment)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': '该时段已被预约，请选择其他时间'}), 409
+
+    appointment = Appointment.query.options(
+        joinedload(Appointment.teacher).joinedload(User.teacher_profile)
+    ).filter_by(id=appointment.id).first()
+    notification_status, notification_message = send_dingtalk_appointment_notification(appointment)
+
+    return jsonify({
+        'success': True,
+        'appointment': serialize_appointment(appointment),
+        'notificationStatus': notification_status,
+        'notificationMessage': notification_message
+    }), 201
 
 
 @app.route('/api/teacher/profiles', methods=['GET'])

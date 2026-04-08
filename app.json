@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/welcome/index",
+    "pages/appointment/index",
     "pages/index/index",
     "pages/post/select_counselor",
     "pages/post/create",
@@ -12,7 +13,7 @@
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#FAFAFA",
-    "navigationBarTitleText": "智心树洞",
+    "navigationBarTitleText": "智梦心坊",
     "navigationBarTextStyle": "black"
   },
   "tabBar": {

@@ -122,12 +122,14 @@
   position: relative;
   z-index: 1;
   width: 100%;
+  margin-top: -52rpx;
 }
 
 .hero-copy,
 .portal-stage,
 .footer-copy,
-.enter-button {
+.enter-button,
+.reserve-button {
   animation: fadeRise 0.9s ease both;
 }
 
@@ -137,24 +139,8 @@
   animation-delay: 0.05s;
 }
 
-.hero-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 164rpx;
-  height: 52rpx;
-  padding: 0 22rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 249, 242, 0.74);
-  border: 2rpx solid rgba(255, 255, 255, 0.62);
-  color: #7b6652;
-  font-size: 22rpx;
-  letter-spacing: 5rpx;
-  box-shadow: 0 8rpx 18rpx rgba(120, 97, 77, 0.08);
-}
-
 .hero-title {
-  margin-top: 22rpx;
+  margin-top: 0;
   color: #3d4b46;
   font-size: 88rpx;
   font-weight: 600;
@@ -175,8 +161,8 @@
 .portal-stage {
   position: relative;
   width: 100%;
-  height: 700rpx;
-  margin: 28rpx 0 10rpx;
+  height: 676rpx;
+  margin: 8rpx 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -238,7 +224,7 @@
 }
 
 .orbit-card-sheet {
-  padding: 20rpx 20rpx 22rpx;
+  padding: 18rpx 18rpx 20rpx;
   border-radius: 30rpx;
   background: rgba(255, 251, 245, 0.82);
   border: 2rpx solid rgba(255, 255, 255, 0.7);
@@ -268,27 +254,38 @@
   display: inline-flex;
   align-items: center;
   height: 36rpx;
-  padding: 0 14rpx;
+  max-width: 100%;
+  padding: 0 12rpx;
   border-radius: 999rpx;
   background: rgba(99, 137, 124, 0.12);
   color: #5d7a70;
-  font-size: 18rpx;
-  letter-spacing: 2rpx;
+  font-size: 16rpx;
+  letter-spacing: 1rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .orbit-card-title {
   margin-top: 14rpx;
   color: #42524b;
-  font-size: 28rpx;
+  font-size: 22rpx;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .orbit-card-desc {
   margin-top: 8rpx;
   color: #7a6a5b;
-  font-size: 22rpx;
-  line-height: 1.52;
+  font-size: 20rpx;
+  line-height: 1.42;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .orbit-card-lines {
@@ -426,18 +423,6 @@
   height: 100%;
 }
 
-.core-caption {
-  position: absolute;
-  left: 50%;
-  bottom: -52rpx;
-  transform: translateX(-50%);
-  color: #7d6d5f;
-  font-size: 22rpx;
-  letter-spacing: 4rpx;
-  white-space: nowrap;
-  transition: opacity 0.3s ease;
-}
-
 .footer-copy {
   padding: 0 22rpx;
   text-align: center;
@@ -460,18 +445,48 @@
 
 .enter-button {
   width: 100%;
-  margin-top: 28rpx;
+  margin-top: 22rpx;
   height: 96rpx;
   line-height: 96rpx;
   padding: 0;
   border-radius: 999rpx;
   background: linear-gradient(135deg, #688a7d 0%, #4d6962 100%);
   color: #ffffff;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 600;
-  letter-spacing: 4rpx;
+  letter-spacing: 1rpx;
   box-shadow: 0 18rpx 36rpx rgba(77, 105, 98, 0.24);
   animation-delay: 0.34s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reserve-button {
+  width: 100%;
+  margin-top: 18rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  background: rgba(255, 251, 244, 0.74);
+  border: 2rpx solid rgba(90, 119, 111, 0.18);
+  color: #536e66;
+  font-size: 28rpx;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  box-shadow:
+    0 12rpx 28rpx rgba(118, 99, 77, 0.08),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.7);
+  animation-delay: 0.42s;
+}
+
+.reserve-button::after {
+  border: none;
+}
+
+.reserve-button[disabled] {
+  opacity: 0.86;
 }
 
 .enter-button::after {
@@ -485,7 +500,8 @@
 
 .welcome-page.is-entering .hero-copy,
 .welcome-page.is-entering .footer-copy,
-.welcome-page.is-entering .enter-button {
+.welcome-page.is-entering .enter-button,
+.welcome-page.is-entering .reserve-button {
   animation: fadeAway 0.45s ease forwards;
 }
 
@@ -546,10 +562,6 @@
   box-shadow:
     0 10rpx 22rpx rgba(90, 73, 57, 0.08),
     inset 0 2rpx 0 rgba(255, 255, 255, 0.35);
-}
-
-.welcome-page.is-entering .core-caption {
-  opacity: 0;
 }
 
 @keyframes fadeRise {

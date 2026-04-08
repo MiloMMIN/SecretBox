@@ -7,30 +7,30 @@ Page({
       {
         id: 'square',
         slot: 'top',
-        tag: '问题广场',
-        title: '问题正在被看见',
-        desc: '新的倾诉落进光里'
+        tag: '积微成著',
+        title: '学不进去怎么办啊',
+        desc: '拆解目标先做一题'
       },
       {
         id: 'reply',
         slot: 'right',
-        tag: '温柔回应',
-        title: '回应会慢慢长出来',
-        desc: '老师与同伴都在路上'
+        tag: '温言暖语',
+        title: '总怕冷场说错话',
+        desc: '倾听比表达更重要'
       },
       {
         id: 'anonymous',
         slot: 'bottom',
-        tag: '匿名倾诉',
-        title: '不必先想得很完整',
-        desc: '先把心事放下来'
+        tag: '向内生长',
+        title: '总觉得自己不够好',
+        desc: '接纳自己慢慢变好'
       },
       {
         id: 'companion',
         slot: 'left',
-        tag: '陪伴记录',
-        title: '每条声音都有回响',
-        desc: '在这里被温柔听见'
+        tag: '向阳而行',
+        title: '前路迷茫该往哪走',
+        desc: '踏实走好这一步吧'
       }
     ]
   },
@@ -102,6 +102,16 @@ Page({
           }
         });
       }
+    });
+  },
+
+  goToAppointment() {
+    if (this.data.entering) {
+      return;
+    }
+
+    wx.navigateTo({
+      url: '/pages/appointment/index'
     });
   }
 });

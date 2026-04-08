@@ -68,7 +68,7 @@
   <!-- 登录授权遮罩 -->
   <view class="login-mask" wx:if="{{showLoginModal}}">
     <view class="login-card">
-      <view class="login-title">欢迎来到智心树洞</view>
+      <view class="login-title">欢迎来到智梦心坊</view>
       <view class="login-mark">树</view>
       <view class="login-desc">请输入昵称完成登录。</view>
       <input type="nickname" class="nickname-input" placeholder="请输入昵称" value="{{userInfo.nickName}}" bindinput="onNicknameChange" />

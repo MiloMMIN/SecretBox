@@ -376,7 +376,15 @@ Page({
         this.setData({ teacherLoading: false });
         if (res.statusCode === 200) {
           const data = res.data || {};
-          this.setData({ teacherQuestions: (data.items || []).map((item) => app.normalizeQuestion(item)) });
+          const normalizedItems = (data.items || []).map((item) => app.normalizeQuestion(item));
+          const teacherQuestions = scope === 'inbox'
+            ? normalizedItems.filter((item) => item.isPublic !== true)
+            : normalizedItems;
+          const nextState = { teacherQuestions };
+          if (scope === 'inbox') {
+            nextState['teacherStats.inboxCount'] = teacherQuestions.length;
+          }
+          this.setData(nextState);
           this.markTeacherNotificationsRead();
           return;
         }
