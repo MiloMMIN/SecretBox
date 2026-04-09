@@ -8,11 +8,60 @@
   margin-bottom: -40rpx; /* 让第一个卡片上浮盖住 Banner */
 }
 
+.banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
 .banner-title {
   font-size: 48rpx;
   font-weight: bold;
-  margin-bottom: 16rpx;
   letter-spacing: 2rpx;
+}
+
+.home-btn {
+  width: 72rpx;
+  height: 72rpx;
+  background: transparent;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(0.95);
+}
+
+.back-icon {
+  width: 40rpx;
+  height: 36rpx;
+  position: relative;
+}
+
+.back-arrow {
+  width: 24rpx;
+  height: 24rpx;
+  border-left: 4rpx solid rgba(255, 255, 255, 0.9);
+  border-bottom: 4rpx solid rgba(255, 255, 255, 0.9);
+  transform: rotate(45deg);
+  position: absolute;
+  left: 4rpx;
+  top: 4rpx;
+}
+
+.back-arrow::after {
+  content: '';
+  position: absolute;
+  width: 28rpx;
+  height: 4rpx;
+  background: rgba(255, 255, 255, 0.9);
+  transform: rotate(-45deg);
+  top: 10rpx;
+  left: -2rpx;
 }
 
 .banner-subtitle {

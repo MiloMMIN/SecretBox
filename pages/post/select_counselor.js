@@ -86,6 +86,12 @@ Page({
     }
   },
 
+  goHome: function() {
+    wx.navigateTo({
+      url: '/pages/welcome/index'
+    });
+  },
+
   selectCounselor: function(e) {
     const { id, name, avatar, avatarText } = e.currentTarget.dataset;
     const index = this.data.counselors.findIndex(c => c.id === id);

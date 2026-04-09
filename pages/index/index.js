@@ -397,6 +397,12 @@ Page({
     });
   },
 
+  goHome: function() {
+    wx.navigateTo({
+      url: '/pages/welcome/index'
+    });
+  },
+
   onTapPost: function() {
     console.log('onTapPost triggered');
     if (!app.globalData.isLoggedIn) {

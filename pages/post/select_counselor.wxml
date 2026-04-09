@@ -1,7 +1,14 @@
 <!--pages/post/select_counselor.wxml-->
 <view class="container">
   <view class="header">
-    <text class="title">选择倾诉对象</text>
+    <view class="header-top">
+      <text class="title">选择倾诉对象</text>
+      <view class="home-btn" bindtap="goHome">
+        <view class="back-icon">
+          <view class="back-arrow"></view>
+        </view>
+      </view>
+    </view>
     <text class="subtitle">可选择指定教师，也可投递到星空树洞由全体教师查看</text>
   </view>
 

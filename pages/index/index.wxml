@@ -2,7 +2,14 @@
 <view class="container">
   <!-- 顶部 Banner -->
   <view class="banner">
-    <view class="banner-title">问题广场</view>
+    <view class="banner-header">
+      <view class="banner-title">问题广场</view>
+      <view class="home-btn" bindtap="goHome">
+        <view class="back-icon">
+          <view class="back-arrow"></view>
+        </view>
+      </view>
+    </view>
     <view class="banner-subtitle">在这里，你的声音会被听见</view>
   </view>
 
