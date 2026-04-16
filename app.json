@@ -2,12 +2,13 @@
   "pages": [
     "pages/welcome/index",
     "pages/appointment/index",
-    "pages/index/index",
     "pages/post/select_counselor",
     "pages/post/create",
     "pages/square_post/index",
     "pages/profile/profile",
     "pages/teacher/square_manage/index",
+    "pages/teacher/appointment_manage/index",
+    "pages/teacher/admin_manage/index",
     "pages/teacher/counselor_manage/index"
   ],
   "window": {
@@ -21,10 +22,6 @@
     "selectedColor": "#66BB6A",
     "backgroundColor": "#FFFFFF",
     "list": [
-      {
-        "pagePath": "pages/index/index",
-        "text": "🏠 广场"
-      },
       {
         "pagePath": "pages/post/select_counselor",
         "text": "📮 投递"

@@ -66,8 +66,85 @@ def ensure_schema_updates():
             db.session.execute(text("ALTER TABLE teacher_profile ADD COLUMN last_checked_at DATETIME NULL"))
             db.session.commit()
 
+    if 'user' in tables:
+        user_columns = {column['name'] for column in inspector.get_columns('user')}
+        if 'wechat_id' not in user_columns:
+            print("检测到 user 缺少 wechat_id，正在补齐...")
+            db.session.execute(text("ALTER TABLE user ADD COLUMN wechat_id VARCHAR(64) NULL"))
+            db.session.commit()
+        if 'admin_level' not in user_columns:
+            print("检测到 user 缺少 admin_level，正在补齐...")
+            db.session.execute(text("ALTER TABLE user ADD COLUMN admin_level VARCHAR(20) NOT NULL DEFAULT 'none'"))
+            db.session.commit()
+
+        ensure_index(
+            'user',
+            'idx_user_wechat_id',
+            "CREATE INDEX idx_user_wechat_id ON user (wechat_id)"
+        )
+
+    if 'appointment' in tables:
+        appointment_columns = {column['name'] for column in inspector.get_columns('appointment')}
+        if 'cancelled_at' not in appointment_columns:
+            print("检测到 appointment 缺少 cancelled_at，正在补齐...")
+            db.session.execute(text("ALTER TABLE appointment ADD COLUMN cancelled_at DATETIME NULL"))
+            db.session.commit()
+        if 'cancelled_by_user_id' not in appointment_columns:
+            print("检测到 appointment 缺少 cancelled_by_user_id，正在补齐...")
+            db.session.execute(text("ALTER TABLE appointment ADD COLUMN cancelled_by_user_id INTEGER NULL"))
+            db.session.commit()
+        if 'cancel_reason' not in appointment_columns:
+            print("检测到 appointment 缺少 cancel_reason，正在补齐...")
+            db.session.execute(text("ALTER TABLE appointment ADD COLUMN cancel_reason VARCHAR(255) NULL"))
+            db.session.commit()
+
+        ensure_index(
+            'appointment',
+            'idx_appointment_user_date_status',
+            "CREATE INDEX idx_appointment_user_date_status ON appointment (user_id, appointment_date, status)"
+        )
+        ensure_index(
+            'appointment',
+            'idx_appointment_teacher_date_status',
+            "CREATE INDEX idx_appointment_teacher_date_status ON appointment (teacher_id, appointment_date, status)"
+        )
+
     if 'teacher_invite' not in tables:
         print("检测到 teacher_invite 表不存在，将由 create_all 创建。")
+    else:
+        teacher_invite_columns = {column['name'] for column in inspector.get_columns('teacher_invite')}
+        if 'claim_token' not in teacher_invite_columns:
+            print("检测到 teacher_invite 缺少 claim_token，正在补齐...")
+            db.session.execute(text("ALTER TABLE teacher_invite ADD COLUMN claim_token VARCHAR(64) NULL"))
+            db.session.commit()
+
+        ensure_index(
+            'teacher_invite',
+            'idx_teacher_invite_claim_token',
+            "CREATE INDEX idx_teacher_invite_claim_token ON teacher_invite (claim_token)"
+        )
+
+    if 'admin_application' not in tables:
+        print("检测到 admin_application 表不存在，将由 create_all 创建。")
+
+    if 'admin_invitation' not in tables:
+        print("检测到 admin_invitation 表不存在，将由 create_all 创建。")
+    else:
+        admin_invitation_columns = {column['name'] for column in inspector.get_columns('admin_invitation')}
+        if 'invitation_type' not in admin_invitation_columns:
+            print("检测到 admin_invitation 缺少 invitation_type，正在补齐...")
+            db.session.execute(text("ALTER TABLE admin_invitation ADD COLUMN invitation_type VARCHAR(20) NOT NULL DEFAULT 'wechat_id'"))
+            db.session.commit()
+        if 'claim_token' not in admin_invitation_columns:
+            print("检测到 admin_invitation 缺少 claim_token，正在补齐...")
+            db.session.execute(text("ALTER TABLE admin_invitation ADD COLUMN claim_token VARCHAR(64) NULL"))
+            db.session.commit()
+
+        ensure_index(
+            'admin_invitation',
+            'idx_admin_invitation_claim_token',
+            "CREATE INDEX idx_admin_invitation_claim_token ON admin_invitation (claim_token)"
+        )
 
 def init_db():
     print("等待数据库连接...")

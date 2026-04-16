@@ -1,0 +1,99 @@
+<view class="manage-page">
+  <view class="paper-noise"></view>
+  <scroll-view scroll-y class="page-scroll">
+    <view class="hero-panel">
+      <view class="hero-kicker">管理权限</view>
+      <view class="hero-title">管理员申请与邀请</view>
+      <view class="hero-desc">管理员可以按微信号邀请，也可以由最高管理员生成分享授权链接，并审核用户主动提交的申请。</view>
+    </view>
+
+    <view wx:if="{{noPermission}}" class="section-card">
+      <view class="section-head">
+        <view>
+          <view class="section-title">暂不可访问</view>
+          <view class="section-subtitle">当前账号没有管理员管理权限，或登录状态已经失效。</view>
+        </view>
+      </view>
+      <view class="empty-state">请返回“我的”页确认账号权限后再进入。</view>
+    </view>
+
+    <block wx:else>
+      <view wx:if="{{canCreateShareInvitation}}" class="section-card share-card">
+        <view class="section-head">
+          <view>
+            <view class="section-title">分享授权</view>
+            <view class="section-subtitle">最高管理员进入页面后会自动准备分享链接，点击后将直接唤起微信分享面板。</view>
+          </view>
+        </view>
+
+        <button class="primary-btn full-btn" open-type="share" disabled="{{!shareInvitationToken || creatingShareInvitation}}">{{shareButtonText}}</button>
+        <button class="secondary-btn full-btn" bindtap="createShareInvitation" disabled="{{creatingShareInvitation}}">{{refreshShareButtonText}}</button>
+        <view class="share-hint">对方打开分享卡片并登录后，会自动获得管理员权限。若你想换一条新的分享链接，可点下方重新生成。</view>
+      </view>
+
+      <view class="section-card invite-card">
+        <view class="section-head">
+          <view>
+            <view class="section-title">邀请管理员</view>
+            <view class="section-subtitle">填写对方微信号。若对方已登录并提交申请，会自动升级为管理员。</view>
+          </view>
+        </view>
+
+        <input class="field-input" placeholder="请输入目标微信号" value="{{inviteForm.targetWechatId}}" bindinput="onInviteWechatIdInput" />
+        <textarea class="field-textarea" maxlength="120" placeholder="备注邀请用途，例如负责年级、值班范围" value="{{inviteForm.note}}" bindinput="onInviteNoteInput"></textarea>
+        <button class="primary-btn" bindtap="createInvitation" disabled="{{creatingInvitation}}">{{createButtonText}}</button>
+      </view>
+
+      <view class="tab-row">
+        <view wx:for="{{tabs}}" wx:key="key" class="{{item.className}}" bindtap="switchTab" data-tab="{{item.key}}">{{item.label}}</view>
+      </view>
+
+      <view class="section-card">
+        <view class="section-head">
+          <view>
+            <view class="section-title">{{currentTabTitle}}</view>
+            <view class="section-subtitle">{{currentTabSubtitle}}</view>
+          </view>
+        </view>
+
+        <view wx:if="{{loading}}" class="empty-state">加载中...</view>
+
+        <block wx:if="{{!loading && showApplications && hasApplications}}">
+          <view wx:for="{{applications}}" wx:key="id" class="manage-card">
+            <view class="manage-card-top">
+              <view class="manage-card-title">{{item.nickName}}</view>
+              <view class="status-chip {{item.statusClass}}">{{item.statusText}}</view>
+            </view>
+            <view class="manage-card-meta">{{item.wechatIdText}}</view>
+            <view class="manage-card-meta">{{item.createdAtText}}</view>
+            <view class="manage-card-desc">{{item.reasonText}}</view>
+            <view wx:if="{{item.showReviewNote}}" class="manage-card-note">{{item.reviewNoteText}}</view>
+            <view wx:if="{{item.showActions}}" class="action-row">
+              <button class="secondary-btn" bindtap="reviewApplication" data-id="{{item.id}}" data-action="reject" disabled="{{item.rejectDisabled}}">拒绝</button>
+              <button class="primary-btn compact" bindtap="reviewApplication" data-id="{{item.id}}" data-action="approve" disabled="{{item.approveDisabled}}">{{item.approveText}}</button>
+            </view>
+          </view>
+        </block>
+
+        <view wx:if="{{!loading && showApplications && !hasApplications}}" class="empty-state">当前暂无管理员申请。</view>
+
+        <block wx:if="{{!loading && showInvitations && hasInvitations}}">
+          <view wx:for="{{invitations}}" wx:key="id" class="manage-card">
+            <view class="manage-card-top">
+              <view class="manage-card-title">{{item.targetWechatId}}</view>
+              <view class="status-chip {{item.statusClass}}">{{item.statusText}}</view>
+            </view>
+            <view class="manage-card-meta">{{item.invitationTypeText}}</view>
+            <view class="manage-card-meta">{{item.createdAtText}}</view>
+            <view wx:if="{{item.showCreatedBy}}" class="manage-card-meta">{{item.createdByText}}</view>
+            <view class="manage-card-desc">{{item.noteText}}</view>
+            <view wx:if="{{item.showClaimedUser}}" class="manage-card-note">{{item.claimedUserText}}</view>
+            <view wx:if="{{item.showProcessedAt}}" class="manage-card-note">{{item.processedAtText}}</view>
+          </view>
+        </block>
+
+        <view wx:if="{{!loading && showInvitations && !hasInvitations}}" class="empty-state">当前暂无管理员邀请。</view>
+      </view>
+    </block>
+  </scroll-view>
+</view>

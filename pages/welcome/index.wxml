@@ -76,7 +76,7 @@
     <button
       class="enter-button"
       bindtap="enterApp"
-      disabled="{{entering}}"
+      disabled="{{entering || !isLoggedIn || checkingLogin || loginLoading}}"
     >
       {{entering ? '正在进入树洞深处' : '轻触，进入树洞深处'}}
     </button>
@@ -84,9 +84,37 @@
     <button
       class="reserve-button"
       bindtap="goToAppointment"
-      disabled="{{entering}}"
+      disabled="{{entering || !isLoggedIn || checkingLogin || loginLoading}}"
     >
       见面，来到树下相约
     </button>
+  </view>
+
+  <view wx:if="{{showLoginGate && !checkingLogin}}" class="login-gate" catchtap="noop">
+    <view class="login-panel" catchtap="noop">
+      <view class="login-panel-tag">欢迎来到智心树洞</view>
+      <view class="login-panel-title">请先登录，再进入树洞</view>
+      <view class="login-panel-desc">未登录时不能投递、预约或查看个人记录。</view>
+      <view wx:if="{{hasAdminInviteToken}}" class="admin-invite-hint">你是通过管理员分享链接进入的，登录后会自动开通管理员权限。</view>
+      <view wx:if="{{hasTeacherInviteToken}}" class="admin-invite-hint">你是通过教师开通链接进入的，登录后会自动开通教师身份。</view>
+      <input
+        class="login-panel-input"
+        type="nickname"
+        value="{{nickName}}"
+        maxlength="20"
+        placeholder="请输入昵称"
+        bindinput="onNicknameInput"
+        bindconfirm="startLogin"
+        confirm-type="done"
+      />
+      <button
+        class="login-panel-button"
+        bindtap="startLogin"
+        loading="{{loginLoading}}"
+        disabled="{{loginLoading}}"
+      >
+        {{loginLoading ? '登录中...' : '立即登录并进入'}}
+      </button>
+    </view>
   </view>
 </view>

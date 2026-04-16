@@ -13,7 +13,7 @@ function buildEditor(profile) {
       avatarUrl: '',
       desc: '',
       isActive: true,
-      inviteCode: '',
+      shareToken: '',
       claimed: false
     };
   }
@@ -26,7 +26,7 @@ function buildEditor(profile) {
     avatarUrl: normalizedProfile.avatarUrl || '',
     desc: normalizedProfile.desc || '',
     isActive: normalizedProfile.isActive !== false,
-    inviteCode: normalizedProfile.inviteCode || '',
+    shareToken: '',
     claimed: !!normalizedProfile.claimed
   };
 }
@@ -38,7 +38,8 @@ Page({
     editor: buildEditor(),
     uploading: false,
     saving: false,
-    creating: false
+    creating: false,
+    shareTokenLoading: false
   },
 
   onLoad() {
@@ -70,8 +71,12 @@ Page({
         this.setData({
           profiles,
           currentIndex: 0,
+          creating: false,
           editor: buildEditor(profiles[0])
         });
+        if (profiles[0] && profiles[0].kind === 'invite' && !profiles[0].claimed) {
+          this.ensureInviteShareLink(profiles[0].id, false, true);
+        }
         return;
       }
       wx.showToast({ title: res.data?.error || '加载失败', icon: 'none' });
@@ -85,16 +90,72 @@ Page({
     const profile = this.data.profiles[index];
     this.setData({
       currentIndex: index,
+      creating: false,
       editor: buildEditor(profile)
     });
+
+    if (profile && profile.kind === 'invite' && !profile.claimed) {
+      this.ensureInviteShareLink(profile.id, false, true);
+    }
   },
 
   createTeacherInvite() {
     this.setData({
       currentIndex: -1,
       creating: true,
+      shareTokenLoading: false,
       editor: buildEditor({ kind: 'invite', isActive: true })
     });
+  },
+
+  ensureInviteShareLink(inviteId, forceRefresh = false, silent = false) {
+    if (!inviteId || this.data.shareTokenLoading) {
+      return;
+    }
+
+    this.setData({
+      shareTokenLoading: true,
+      'editor.shareToken': forceRefresh ? '' : (this.data.editor.shareToken || '')
+    });
+
+    this.request({
+      url: `${app.globalData.baseUrl}/teacher/invites/${inviteId}/share-link`,
+      method: 'POST',
+      data: {
+        forceRefresh
+      }
+    }).then((res) => {
+      this.setData({ shareTokenLoading: false });
+      if (res.statusCode === 200 && res.data.success) {
+        const shareToken = res.data.shareToken || '';
+        if (this.data.editor.id === inviteId && this.data.editor.kind === 'invite') {
+          this.setData({
+            'editor.shareToken': shareToken
+          });
+        }
+        if (!silent) {
+          wx.showToast({ title: '分享链接已准备好', icon: 'success' });
+        }
+        return;
+      }
+
+      if (!silent) {
+        wx.showToast({ title: res.data?.error || '分享链接准备失败', icon: 'none' });
+      }
+    }).catch(() => {
+      this.setData({ shareTokenLoading: false });
+      if (!silent) {
+        wx.showToast({ title: '分享链接准备失败', icon: 'none' });
+      }
+    });
+  },
+
+  refreshInviteShareLink() {
+    if (this.data.editor.kind !== 'invite' || !this.data.editor.id) {
+      return;
+    }
+
+    this.ensureInviteShareLink(this.data.editor.id, true, false);
   },
 
   onNameInput(e) {
@@ -191,12 +252,20 @@ Page({
         }
 
         const nextIndex = this.data.creating ? 0 : this.data.currentIndex;
+        const nextEditor = buildEditor(profile);
+        if (profile.kind === 'invite' && res.data?.shareToken) {
+          nextEditor.shareToken = res.data.shareToken;
+        }
         this.setData({
           profiles,
           currentIndex: nextIndex,
           creating: false,
-          editor: buildEditor(profile)
+          editor: nextEditor
         });
+
+        if (profile.kind === 'invite' && !profile.claimed && !nextEditor.shareToken) {
+          this.ensureInviteShareLink(profile.id, false, true);
+        }
 
         if (profile.kind === 'teacher' && app.globalData.userInfo && app.globalData.userInfo.id === profile.id) {
           const userInfo = {
@@ -214,20 +283,6 @@ Page({
     }).catch(() => {
       this.setData({ saving: false });
       wx.showToast({ title: '保存失败', icon: 'none' });
-    });
-  },
-
-  copyInviteCode() {
-    if (!this.data.editor.inviteCode) {
-      wx.showToast({ title: '当前不是待激活教师', icon: 'none' });
-      return;
-    }
-
-    wx.setClipboardData({
-      data: this.data.editor.inviteCode,
-      success: () => {
-        wx.showToast({ title: '邀请码已复制', icon: 'success' });
-      }
     });
   },
 
@@ -277,5 +332,19 @@ Page({
         });
       }
     });
+  },
+
+  onShareAppMessage() {
+    const shareToken = (this.data.editor.shareToken || '').trim();
+    let path = '/pages/welcome/index';
+
+    if (shareToken) {
+      path += `?teacherInviteToken=${encodeURIComponent(shareToken)}`;
+    }
+
+    return {
+      title: `邀请你加入智心树洞教师工作台`,
+      path
+    };
   }
 })

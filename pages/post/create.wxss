@@ -1,17 +1,24 @@
 /* pages/post/create.wxss */
+.container {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(255, 248, 238, 0.94) 0%, rgba(240, 228, 211, 0.95) 32%, rgba(221, 204, 179, 0.96) 68%, #efe5d7 100%);
+  padding-top: 16rpx;
+}
+
 .target-info {
   padding: 40rpx 40rpx 20rpx;
-  color: var(--text-secondary);
+  color: #756252;
   font-size: 28rpx;
 }
 
 .target-name {
-  color: var(--primary-green-dark);
-  font-weight: bold;
+  color: #5d786f;
+  font-weight: 600;
   font-size: 32rpx;
   padding: 0 8rpx;
-  background-color: var(--primary-green-light);
-  border-radius: 8rpx;
+  background-color: rgba(121, 150, 139, 0.12);
+  border-radius: 999rpx;
   margin: 0 6rpx;
 }
 
@@ -51,7 +58,7 @@
   min-width: 120rpx;
   height: 64rpx;
   border-radius: 32rpx;
-  background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+  background: linear-gradient(135deg, #79968b, #5d786f);
   color: white;
   font-size: 26rpx;
   display: flex;
@@ -115,7 +122,7 @@
   font-size: 26rpx;
   font-weight: 700;
   color: white;
-  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+  background: linear-gradient(135deg, #a8c2b1, #6b8a7d);
 }
 
 .dialog-bubble-wrap {
@@ -149,12 +156,12 @@
 }
 
 .dialog-bubble.mine {
-  background: linear-gradient(135deg, #E8F5E9, #F4FBF4);
+  background: linear-gradient(135deg, rgba(121, 150, 139, 0.16), rgba(255, 250, 244, 0.96));
   border-bottom-right-radius: 8rpx;
 }
 
 .dialog-bubble.theirs {
-  background: white;
+  background: rgba(255, 255, 255, 0.92);
   border-bottom-left-radius: 8rpx;
 }
 
@@ -187,6 +194,8 @@
   background-image: linear-gradient(#F5F5F5 1px, transparent 1px);
   background-size: 100% 60rpx;
   background-position: 0 20rpx; /* 对齐线条 */
+  background-color: rgba(255, 252, 247, 0.88);
+  box-shadow: 0 18rpx 36rpx rgba(111, 89, 65, 0.08);
 }
 
 .form-card.compact {
@@ -214,6 +223,8 @@
 
 .options-card {
   padding: 0 40rpx;
+  background: rgba(255, 252, 247, 0.88);
+  box-shadow: 0 18rpx 36rpx rgba(111, 89, 65, 0.08);
 }
 
 .option-item {
@@ -250,7 +261,7 @@
 }
 
 .input-field {
-  background-color: #F5F7F5;
+  background-color: rgba(255, 249, 242, 0.96);
   padding: 16rpx 24rpx;
   border-radius: 12rpx;
   font-size: 28rpx;
@@ -283,13 +294,13 @@
 }
 
 .submit-btn {
-  background: linear-gradient(135deg, var(--primary-green), var(--primary-green-dark));
+  background: linear-gradient(135deg, #79968b, #5d786f);
   color: white;
   border-radius: 50rpx;
   font-size: 34rpx;
   font-weight: bold;
   padding: 10rpx 0; /* 小程序 button padding 特殊 */
-  box-shadow: 0 8rpx 20rpx rgba(102, 187, 106, 0.4);
+  box-shadow: 0 12rpx 24rpx rgba(93, 120, 111, 0.22);
   transition: all 0.3s;
 }
 

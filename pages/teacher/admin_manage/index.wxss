@@ -1,0 +1,242 @@
+.manage-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(255, 248, 238, 0.94) 0%, rgba(240, 228, 211, 0.95) 32%, rgba(221, 204, 179, 0.96) 68%, #d2bb9b 100%);
+}
+
+.paper-noise {
+  position: fixed;
+  inset: 0;
+  opacity: 0.1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.42) 0, rgba(255, 255, 255, 0.42) 4rpx, transparent 5rpx),
+    radial-gradient(circle at 78% 28%, rgba(120, 98, 78, 0.14) 0, rgba(120, 98, 78, 0.14) 3rpx, transparent 4rpx);
+  background-size: 220rpx 220rpx;
+}
+
+.page-scroll {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 32rpx 28rpx 56rpx;
+}
+
+.hero-panel {
+  padding: 20rpx 8rpx 26rpx;
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 144rpx;
+  height: 48rpx;
+  padding: 0 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 251, 245, 0.72);
+  color: #7b6650;
+  font-size: 22rpx;
+  letter-spacing: 4rpx;
+}
+
+.hero-title {
+  margin-top: 20rpx;
+  color: #3d4c46;
+  font-size: 58rpx;
+  line-height: 1.16;
+  font-weight: 600;
+  font-family: 'STKaiti', 'KaiTi', 'Kaiti SC', serif;
+}
+
+.hero-desc {
+  margin-top: 16rpx;
+  color: #756252;
+  font-size: 28rpx;
+  line-height: 1.7;
+}
+
+.section-card {
+  padding: 28rpx;
+  border-radius: 36rpx;
+  background: rgba(255, 252, 247, 0.82);
+  border: 2rpx solid rgba(255, 255, 255, 0.66);
+  box-shadow: 0 22rpx 48rpx rgba(111, 89, 65, 0.08);
+  backdrop-filter: blur(12rpx);
+}
+
+.invite-card {
+  margin-bottom: 20rpx;
+}
+
+.share-card {
+  margin-bottom: 20rpx;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18rpx;
+}
+
+.section-title {
+  color: #42524c;
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.section-subtitle {
+  margin-top: 10rpx;
+  color: #837263;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
+.field-input,
+.field-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 20rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 249, 242, 0.92);
+  border: 2rpx solid rgba(121, 150, 139, 0.1);
+  color: #42524c;
+  font-size: 28rpx;
+}
+
+.field-input {
+  height: 88rpx;
+  padding: 0 24rpx;
+}
+
+.field-textarea {
+  min-height: 156rpx;
+  padding: 22rpx 24rpx;
+}
+
+.tab-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.tab-pill {
+  flex: 1;
+  padding: 18rpx 16rpx;
+  border-radius: 999rpx;
+  text-align: center;
+  background: rgba(255, 251, 245, 0.74);
+  color: #7b6650;
+  font-size: 24rpx;
+}
+
+.tab-pill.active {
+  background: linear-gradient(135deg, #79968b, #5d786f);
+  color: #fff;
+}
+
+.manage-card {
+  margin-top: 20rpx;
+  padding: 24rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 249, 242, 0.88);
+  box-shadow: 0 12rpx 24rpx rgba(112, 89, 63, 0.05);
+}
+
+.manage-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.manage-card-title {
+  font-size: 30rpx;
+  color: #42524c;
+  font-weight: 600;
+}
+
+.manage-card-meta,
+.manage-card-desc,
+.manage-card-note,
+.empty-state {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #8a7867;
+  line-height: 1.6;
+}
+
+.manage-card-desc {
+  color: #675748;
+}
+
+.status-chip {
+  flex-shrink: 0;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+}
+
+.status-chip.pending {
+  background: rgba(214, 166, 120, 0.16);
+  color: #bc7d4a;
+}
+
+.status-chip.approved,
+.status-chip.claimed {
+  background: rgba(121, 150, 139, 0.14);
+  color: #5f7a6f;
+}
+
+.status-chip.rejected,
+.status-chip.revoked {
+  background: rgba(190, 122, 96, 0.14);
+  color: #b0604c;
+}
+
+.action-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+
+.primary-btn,
+.secondary-btn {
+  margin-top: 20rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  line-height: 84rpx;
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, #79968b, #5d786f);
+  color: #fff;
+}
+
+.primary-btn.compact,
+.secondary-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.86);
+  color: #7b6650;
+  border: 2rpx solid rgba(121, 150, 139, 0.12);
+}
+
+.full-btn {
+  width: 100%;
+}
+
+.share-hint {
+  margin-top: 18rpx;
+  font-size: 22rpx;
+  line-height: 1.7;
+  color: #7c6a5a;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40rpx 16rpx 12rpx;
+}

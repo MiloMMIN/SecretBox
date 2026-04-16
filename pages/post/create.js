@@ -24,6 +24,10 @@ Page({
   },
 
   onLoad: function (options) {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
+      return;
+    }
+
     this.setData({
       counselorId: options.counselorId,
       counselorName: safeDecode(options.counselorName) || '教师'
@@ -77,10 +81,14 @@ Page({
     const token = wx.getStorageSync('token');
     if (!token) {
       wx.hideLoading();
-      wx.showToast({
-        title: '请先登录',
-        icon: 'none'
-      });
+      if (typeof app.requireLogin === 'function') {
+        app.requireLogin();
+      } else {
+        wx.showToast({
+          title: '请先登录',
+          icon: 'none'
+        });
+      }
       return;
     }
 
@@ -109,7 +117,7 @@ Page({
 
           setTimeout(() => {
             wx.switchTab({
-              url: '/pages/index/index'
+              url: '/pages/post/select_counselor'
             });
           }, 800);
           return;

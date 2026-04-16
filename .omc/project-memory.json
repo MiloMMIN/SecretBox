@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1775526066777,
-  "projectRoot": "D:\\GITScript\\SecretBox",
+  "lastScanned": 1776320022385,
+  "projectRoot": "d:\\GITScript\\zhimeng",
   "techStack": {
     "languages": [],
     "frameworks": [],
@@ -25,6 +25,7 @@
     "isMonorepo": false,
     "workspaces": [],
     "mainDirectories": [
+      "assets",
       "pages",
       "tests"
     ],
@@ -35,18 +36,32 @@
   },
   "customNotes": [],
   "directoryMap": {
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 0,
+      "lastAccessed": 1776320022277,
+      "keyFiles": []
+    },
+    "image": {
+      "path": "image",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1776320022304,
+      "keyFiles": []
+    },
     "pages": {
       "path": "pages",
       "purpose": "Page components",
       "fileCount": 0,
-      "lastAccessed": 1775526066722,
+      "lastAccessed": 1776320022306,
       "keyFiles": []
     },
     "server": {
       "path": "server",
       "purpose": null,
       "fileCount": 7,
-      "lastAccessed": 1775526066724,
+      "lastAccessed": 1776320022307,
       "keyFiles": [
         "app.py",
         "config.env.template",
@@ -59,7 +74,7 @@
       "path": "tests",
       "purpose": "Test files",
       "fileCount": 1,
-      "lastAccessed": 1775526066725,
+      "lastAccessed": 1776320022307,
       "keyFiles": [
         "test_image_upload.py"
       ]
@@ -68,7 +83,7 @@
       "path": "tools",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1775526066726,
+      "lastAccessed": 1776320022310,
       "keyFiles": [
         "load_test.py"
       ]
@@ -77,7 +92,7 @@
       "path": "server\\data",
       "purpose": "Data files",
       "fileCount": 1,
-      "lastAccessed": 1775526066727,
+      "lastAccessed": 1776320022313,
       "keyFiles": [
         "sensitive_words.txt"
       ]

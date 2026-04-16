@@ -1,237 +1,78 @@
-.container {
-  padding: 24rpx;
+.pending-page {
+  min-height: 100vh;
+  padding: 48rpx 36rpx 80rpx;
+  background: linear-gradient(180deg, #F2F5F8 0%, #FFFFFF 100%);
 }
 
-.filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-  margin-bottom: 24rpx;
+.pending-hero {
+  padding: 48rpx 40rpx;
+  border-radius: 36rpx;
+  background: linear-gradient(135deg, #4A5A70 0%, #62768C 100%);
+  color: #FFFFFF;
+  box-shadow: 0 20rpx 40rpx rgba(74, 90, 112, 0.14);
 }
 
-.filter-chip {
-  padding: 12rpx 24rpx;
+.pending-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 10rpx 20rpx;
   border-radius: 999rpx;
-  background: #ECEFF1;
-  color: #607D8B;
+  background: rgba(255, 255, 255, 0.16);
   font-size: 24rpx;
+  letter-spacing: 2rpx;
 }
 
-.filter-chip.active {
-  background: #2E7D32;
-  color: white;
-}
-
-.question-card,
-.detail-card,
-.reply-card {
-  background: white;
-  border-radius: 24rpx;
-  padding: 28rpx;
-  margin-bottom: 20rpx;
-  box-shadow: 0 10rpx 24rpx rgba(34, 68, 56, 0.06);
-}
-
-.question-top,
-.question-meta,
-.reply-top,
-.reply-user-row,
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.question-top {
-  gap: 16rpx;
-}
-
-.question-type {
-  padding: 6rpx 14rpx;
-  border-radius: 18rpx;
-  background: #E3F2FD;
-  color: #1976D2;
-  font-size: 22rpx;
-}
-
-.question-time,
-.reply-time,
-.question-meta {
-  font-size: 22rpx;
-  color: #90A4AE;
-}
-
-.question-content,
-.reply-content {
-  font-size: 30rpx;
-  color: #37474F;
-  line-height: 1.65;
-  margin: 18rpx 0;
-}
-
-.question-latest {
-  background: #F5F7F5;
-  border-radius: 18rpx;
-  padding: 16rpx 18rpx;
-  color: #607D8B;
-  font-size: 24rpx;
-}
-
-.question-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 12rpx;
-  margin-top: 18rpx;
-}
-
-.review-status {
-  padding: 6rpx 14rpx;
-  border-radius: 18rpx;
-  font-size: 22rpx;
-}
-
-.review-status.pending {
-  background: #FFF3E0;
-  color: #FB8C00;
-}
-
-.review-status.approved {
-  background: #E8F5E9;
-  color: #43A047;
-}
-
-.review-status.rejected {
-  background: #FFEBEE;
-  color: #D32F2F;
-}
-
-.approve-btn,
-.reject-btn,
-.danger-btn {
-  background: #FFEBEE;
-  color: #D32F2F;
-  border-radius: 32rpx;
-  font-size: 24rpx;
-  padding: 0 26rpx;
-  line-height: 64rpx;
-}
-
-.approve-btn {
-  background: #E8F5E9;
-  color: #2E7D32;
-}
-
-.reject-btn {
-  background: #FFF3E0;
-  color: #EF6C00;
-}
-
-.danger-btn.full {
-  margin-top: 10rpx;
-}
-
-.danger-btn.small {
-  margin-top: 18rpx;
-}
-
-.detail-container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-header {
-  padding: 28rpx 30rpx 10rpx;
-  background: white;
-}
-
-.detail-title {
-  font-size: 32rpx;
+.pending-title {
+  margin-top: 26rpx;
+  font-size: 50rpx;
   font-weight: 700;
+  line-height: 1.3;
 }
 
-.close-btn {
-  font-size: 40rpx;
-  color: #90A4AE;
-}
-
-.detail-scroll {
-  flex: 1;
-  padding: 20rpx 24rpx 40rpx;
-}
-
-.detail-review-row,
-.detail-review-actions {
-  display: flex;
-  align-items: center;
-}
-
-.detail-review-row {
-  justify-content: space-between;
-  margin-top: 12rpx;
-  gap: 12rpx;
-}
-
-.detail-review-actions {
-  gap: 12rpx;
-}
-
-.small-action {
-  margin: 0;
-  padding: 0 22rpx;
-  line-height: 56rpx;
-  font-size: 22rpx;
-}
-
-.reply-section {
-  padding-bottom: 30rpx;
-}
-
-.section-title {
+.pending-desc {
+  margin-top: 18rpx;
   font-size: 28rpx;
-  color: #607D8B;
-  margin: 8rpx 0 18rpx;
+  line-height: 1.8;
+  opacity: 0.9;
 }
 
-.reply-name {
-  font-size: 26rpx;
-  color: #37474F;
+.pending-card {
+  margin-top: 32rpx;
+  padding: 34rpx 32rpx;
+  border-radius: 28rpx;
+  background: #FFFFFF;
+  box-shadow: 0 14rpx 34rpx rgba(62, 82, 110, 0.08);
+}
+
+.pending-card-title {
+  font-size: 30rpx;
   font-weight: 600;
+  color: #334357;
 }
 
-.reply-role {
-  margin-left: 12rpx;
-  font-size: 20rpx;
-  padding: 4rpx 10rpx;
-  border-radius: 16rpx;
+.pending-card-item {
+  margin-top: 18rpx;
+  font-size: 27rpx;
+  line-height: 1.7;
+  color: #617386;
 }
 
-.reply-role.teacher {
-  background: #E8F5E9;
-  color: #43A047;
+.primary-btn,
+.secondary-btn {
+  margin-top: 28rpx;
+  border-radius: 999rpx;
+  font-size: 30rpx;
+  line-height: 92rpx;
 }
 
-.reply-role.student {
-  background: #ECEFF1;
-  color: #607D8B;
+.primary-btn {
+  background: linear-gradient(135deg, #66BB6A 0%, #3F9C4B 100%);
+  color: #FFFFFF;
+  box-shadow: 0 14rpx 30rpx rgba(102, 187, 106, 0.24);
 }
 
-.reply-images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.reply-image {
-  width: 180rpx;
-  height: 180rpx;
-  border-radius: 16rpx;
-}
-
-.empty-state {
-  padding: 80rpx 20rpx;
-  text-align: center;
-  color: #90A4AE;
-  font-size: 26rpx;
+.secondary-btn {
+  background: #FFFFFF;
+  color: #516276;
+  border: 2rpx solid #D8E0EA;
 }

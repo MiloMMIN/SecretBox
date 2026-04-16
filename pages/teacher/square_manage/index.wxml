@@ -1,83 +1,16 @@
-<view class="container">
-  <view class="filter-bar">
-    <view class="filter-chip {{reviewFilter === 'pending' ? 'active' : ''}}" bindtap="changeReviewFilter" data-filter="pending" data-label="待审核">待审核</view>
-    <view class="filter-chip {{reviewFilter === 'approved' ? 'active' : ''}}" bindtap="changeReviewFilter" data-filter="approved" data-label="已通过">已通过</view>
-    <view class="filter-chip {{reviewFilter === 'rejected' ? 'active' : ''}}" bindtap="changeReviewFilter" data-filter="rejected" data-label="已驳回">已驳回</view>
-    <view class="filter-chip {{reviewFilter === 'all' ? 'active' : ''}}" bindtap="changeReviewFilter" data-filter="all" data-label="全部">全部</view>
+<view class="container pending-page">
+  <view class="pending-hero">
+    <view class="pending-badge">待定功能</view>
+    <view class="pending-title">广场管理暂未开放</view>
+    <view class="pending-desc">教师端的公开广场审核链路已暂停。当前请在“我的”中处理私密树洞与教师管理。</view>
   </view>
-  <view wx:if="{{loading}}" class="empty-state">加载中...</view>
-  <block wx:elif="{{questions.length}}">
-    <view class="question-card" wx:for="{{questions}}" wx:key="id" bindtap="openQuestion" data-id="{{item.id}}">
-      <view class="question-top">
-        <view class="question-type">广场</view>
-        <view class="review-status {{item.reviewStatus}}">{{item.reviewStatusText}}</view>
-        <view class="question-time">{{item.time}}</view>
-      </view>
-      <view class="question-content">{{item.content}}</view>
-      <view class="question-meta">
-        <text>{{item.author.nickName}}</text>
-        <text>{{item.comments}} 条回复</text>
-      </view>
-      <view wx:if="{{item.latestReplyPreview}}" class="question-latest">最新回复：{{item.latestReplyPreview}}</view>
-      <view class="question-actions">
-        <button wx:if="{{item.reviewStatus !== 'approved'}}" class="approve-btn" catchtap="reviewQuestion" data-id="{{item.id}}" data-action="approve">通过</button>
-        <button wx:if="{{item.reviewStatus !== 'rejected'}}" class="reject-btn" catchtap="reviewQuestion" data-id="{{item.id}}" data-action="reject">驳回</button>
-        <button class="danger-btn" catchtap="deleteQuestion" data-id="{{item.id}}">删除留言</button>
-      </view>
-    </view>
-  </block>
-  <view wx:else class="empty-state">当前{{reviewFilterLabel}}列表为空</view>
 
-  <page-container
-    show="{{showDetail}}"
-    round="{{true}}"
-    overlay="{{true}}"
-    position="bottom"
-    custom-style="height: 82%; background-color: #F5F7F5;"
-    bind:leave="closeDetail"
-  >
-    <view class="detail-container" wx:if="{{currentQuestion}}">
-      <view class="detail-header">
-        <text class="detail-title">留言详情</text>
-        <view class="close-btn" bindtap="closeDetail">×</view>
-      </view>
-      <scroll-view scroll-y class="detail-scroll">
-        <view class="detail-card">
-          <view class="question-content">{{currentQuestion.content}}</view>
-          <view class="question-meta">
-            <text>{{currentQuestion.user.nickName}}</text>
-            <text>{{currentQuestion.time}}</text>
-          </view>
-          <view class="detail-review-row">
-            <view class="review-status {{currentQuestion.reviewStatus}}">{{currentQuestion.reviewStatusText}}</view>
-            <view class="detail-review-actions">
-              <button wx:if="{{currentQuestion.reviewStatus !== 'approved'}}" class="approve-btn small-action" bindtap="reviewQuestion" data-id="{{currentQuestion.id}}" data-action="approve">通过</button>
-              <button wx:if="{{currentQuestion.reviewStatus !== 'rejected'}}" class="reject-btn small-action" bindtap="reviewQuestion" data-id="{{currentQuestion.id}}" data-action="reject">驳回</button>
-            </view>
-          </view>
-          <button class="danger-btn full" bindtap="deleteQuestion" data-id="{{currentQuestion.id}}">删除整条留言</button>
-        </view>
-        <view class="reply-section">
-          <view class="section-title">回复管理</view>
-          <block wx:for="{{currentQuestion.replies}}" wx:key="id">
-            <view class="reply-card">
-              <view class="reply-top">
-                <view class="reply-user-row">
-                  <text class="reply-name">{{item.user.nickname}}</text>
-                  <text class="reply-role {{item.user.role}}">{{item.user.role === 'teacher' ? '教师' : '学生'}}</text>
-                </view>
-                <text class="reply-time">{{item.time}}</text>
-              </view>
-              <view wx:if="{{item.content}}" class="reply-content">{{item.content}}</view>
-              <view wx:if="{{item.images && item.images.length}}" class="reply-images">
-                <image wx:for="{{item.images}}" wx:key="*this" class="reply-image" src="{{item}}" mode="aspectFill" bindtap="previewImage" data-url="{{item}}" data-urls="{{item.images}}"></image>
-              </view>
-              <button class="danger-btn small" bindtap="deleteReply" data-id="{{item.id}}">删除回复</button>
-            </view>
-          </block>
-          <view wx:if="{{!currentQuestion.replies.length}}" class="empty-state">暂无回复</view>
-        </view>
-      </scroll-view>
-    </view>
-  </page-container>
+  <view class="pending-card">
+    <view class="pending-card-title">当前建议</view>
+    <view class="pending-card-item">前往“我的”查看树洞信箱</view>
+    <view class="pending-card-item">继续使用教师管理与导出功能</view>
+  </view>
+
+  <button class="primary-btn" bindtap="goToProfile">返回我的</button>
+  <button class="secondary-btn" bindtap="goBack">返回上一页</button>
 </view>

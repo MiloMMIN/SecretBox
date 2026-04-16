@@ -1,19 +1,19 @@
 /** app.wxss **/
 page {
   /* 🎨 核心配色：柔和、治愈、安全 */
-  --primary-green: #66BB6A;       /* 主色调：治愈绿 */
-  --primary-green-light: #E8F5E9; /* 浅绿背景 */
-  --primary-green-dark: #388E3C;  /* 深绿强调 */
+  --primary-green: #79968B;       /* 主色调：雾绿 */
+  --primary-green-light: #EDF3EE; /* 浅雾绿背景 */
+  --primary-green-dark: #5D786F;  /* 深雾绿强调 */
   
-  --bg-color: #F5F7F5;            /* 全局背景：极淡的灰绿，不刺眼 */
-  --surface-color: #FFFFFF;       /* 卡片背景 */
+  --bg-color: #F5EFE6;            /* 全局背景：暖米白 */
+  --surface-color: #FFFBF7;       /* 卡片背景 */
   
-  --text-main: #37474F;           /* 主文字：蓝灰色，比纯黑更柔和 */
-  --text-secondary: #78909C;      /* 次要文字 */
-  --text-placeholder: #B0BEC5;    /* 占位符颜色 */
+  --text-main: #42524C;           /* 主文字：灰绿 */
+  --text-secondary: #7B6B5C;      /* 次要文字 */
+  --text-placeholder: #B7A999;    /* 占位符颜色 */
   
-  --accent-orange: #FFA726;       /* 强调色：温暖橙 */
-  --accent-red: #EF5350;          /* 警告/错误 */
+  --accent-orange: #D89E6E;       /* 强调色：暖砂橙 */
+  --accent-red: #B86A58;          /* 警告/错误 */
   
   /* 📐 形状与间距 */
   --radius-sm: 12rpx;
@@ -27,9 +27,9 @@ page {
   --spacing-lg: 40rpx;
   
   /* 🌑 阴影：柔和弥散 */
-  --shadow-sm: 0 2rpx 8rpx rgba(55, 71, 79, 0.04);
-  --shadow-md: 0 8rpx 24rpx rgba(55, 71, 79, 0.06);
-  --shadow-lg: 0 16rpx 48rpx rgba(55, 71, 79, 0.08);
+  --shadow-sm: 0 4rpx 12rpx rgba(111, 89, 65, 0.05);
+  --shadow-md: 0 12rpx 28rpx rgba(111, 89, 65, 0.08);
+  --shadow-lg: 0 20rpx 56rpx rgba(111, 89, 65, 0.1);
 
   background-color: var(--bg-color);
   color: var(--text-main);

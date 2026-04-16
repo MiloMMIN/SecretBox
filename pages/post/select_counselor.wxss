@@ -1,8 +1,17 @@
 /* pages/post/select_counselor.wxss */
+.container {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(255, 248, 238, 0.94) 0%, rgba(240, 228, 211, 0.95) 32%, rgba(221, 204, 179, 0.96) 68%, #efe5d7 100%);
+}
+
 .header {
   padding: 60rpx 40rpx;
-  background-color: var(--primary-green-light);
+  background: linear-gradient(180deg, rgba(232, 242, 233, 0.86), rgba(240, 228, 211, 0.62));
   color: var(--primary-green-dark);
+  border-bottom-left-radius: 36rpx;
+  border-bottom-right-radius: 36rpx;
+  box-shadow: 0 16rpx 36rpx rgba(111, 89, 65, 0.08);
 }
 
 .header-top {
@@ -13,8 +22,10 @@
 }
 
 .title {
-  font-size: 44rpx;
-  font-weight: bold;
+  font-size: 48rpx;
+  font-weight: 600;
+  color: #3d4c46;
+  font-family: 'STKaiti', 'KaiTi', 'Kaiti SC', serif;
   display: block;
 }
 
@@ -29,7 +40,7 @@
 }
 
 .home-btn:active {
-  background: rgba(102, 187, 106, 0.1);
+  background: rgba(121, 150, 139, 0.12);
   transform: scale(0.95);
 }
 
@@ -63,7 +74,9 @@
 
 .subtitle {
   font-size: 28rpx;
-  opacity: 0.8;
+  opacity: 0.92;
+  color: #756252;
+  line-height: 1.7;
 }
 
 .counselor-list {
@@ -77,12 +90,14 @@
   align-items: center;
   padding: 34rpx 30rpx;
   margin-bottom: 30rpx;
-  border: 2rpx solid transparent; /* 预留边框位置 */
+  border: 2rpx solid rgba(255, 255, 255, 0.68);
+  background: rgba(255, 252, 247, 0.82);
+  box-shadow: 0 18rpx 38rpx rgba(111, 89, 65, 0.08);
 }
 
 .counselor-card:active {
-  border-color: var(--primary-green);
-  background-color: #FAFAFA;
+  border-color: rgba(121, 150, 139, 0.32);
+  background-color: rgba(255, 250, 244, 0.92);
 }
 
 .counselor-info {
@@ -96,17 +111,17 @@
   width: 110rpx;
   height: 110rpx;
   border-radius: 50%;
-  background-color: #E0E0E0;
+  background-color: rgba(223, 214, 202, 0.86);
   margin-right: 30rpx;
   border: 4rpx solid white;
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.1);
+  box-shadow: 0 8rpx 18rpx rgba(111, 89, 65, 0.12);
 }
 
 .avatar-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #90CAF9, #66BB6A);
+  background: linear-gradient(135deg, #a8c2b1, #6b8a7d);
   color: white;
   font-size: 38rpx;
   font-weight: 700;
@@ -128,7 +143,7 @@
 
 .name-text {
   font-size: 34rpx;
-  font-weight: bold;
+  font-weight: 600;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
@@ -138,8 +153,8 @@
 
 .role {
   font-size: 20rpx;
-  color: var(--primary-green-dark);
-  background-color: var(--primary-green-light);
+  color: #5f7a6f;
+  background-color: rgba(121, 150, 139, 0.14);
   padding: 4rpx 12rpx;
   border-radius: 20rpx;
   margin-left: 16rpx;
@@ -147,13 +162,13 @@
 }
 
 .tree-hole-tag {
-  background-color: #E3F2FD;
-  color: #1976D2;
+  background-color: rgba(214, 166, 120, 0.16);
+  color: #bc7d4a;
 }
 
 .desc {
   font-size: 24rpx;
-  color: var(--text-secondary);
+  color: #7f6d5d;
   line-height: 1.5;
   margin-top: 8rpx;
   display: -webkit-box;
@@ -163,14 +178,14 @@
 }
 
 .enter-btn {
-  background-color: var(--primary-green);
+  background: linear-gradient(135deg, #79968b, #5d786f);
   color: white;
   font-size: 24rpx;
   padding: 14rpx 24rpx;
   border-radius: 40rpx;
   margin-left: 8rpx;
   white-space: nowrap;
-  box-shadow: 0 4rpx 10rpx rgba(102, 187, 106, 0.3);
+  box-shadow: 0 8rpx 20rpx rgba(93, 120, 111, 0.2);
   font-weight: 500;
   flex-shrink: 0;
 }

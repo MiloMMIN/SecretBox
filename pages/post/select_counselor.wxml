@@ -9,7 +9,7 @@
         </view>
       </view>
     </view>
-    <text class="subtitle">可选择指定教师，也可投递到星空树洞由全体教师查看</text>
+    <text class="subtitle">可选择指定教师，也可投递到星空树洞</text>
   </view>
 
   <view class="counselor-list">
@@ -22,7 +22,7 @@
             <view class="name-row">
               <text class="name-text">{{item.name}}</text>
               <text class="role" wx:if="{{!item.isTreeHole}}">教师</text>
-              <text class="role tree-hole-tag" wx:else>纯树洞</text>
+              <text class="role tree-hole-tag" wx:else>无人树洞</text>
             </view>
             <view class="desc">{{item.desc}}</view>
           </view>

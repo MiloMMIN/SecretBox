@@ -170,10 +170,49 @@ function buildTimeSlots(dayAppointments, selectedSlot, today, selectedDate, curr
   });
 }
 
+function hasAdminAccess(userInfo) {
+  if (typeof app.hasAdminAccess === 'function') {
+    return app.hasAdminAccess(userInfo || {});
+  }
+  const adminLevel = userInfo?.adminLevel || userInfo?.admin_level || 'none';
+  return adminLevel === 'admin' || adminLevel === 'super_admin';
+}
+
+function canManageAppointments(userInfo) {
+  return userInfo?.role === 'teacher' || hasAdminAccess(userInfo);
+}
+
+function buildManagerTabs(userInfo, buckets) {
+  const tabs = [];
+  if (hasAdminAccess(userInfo)) {
+    tabs.push({ key: 'all', label: '全部预约', count: buckets.all.length });
+  }
+  if (userInfo?.role === 'teacher') {
+    tabs.push({ key: 'assigned', label: '预约我的', count: buckets.assigned.length });
+  }
+  tabs.push({ key: 'created', label: '我发起的', count: buckets.created.length });
+  return tabs;
+}
+
+function getCurrentUserInfo() {
+  return typeof app.normalizeUserInfo === 'function'
+    ? app.normalizeUserInfo(app.globalData.userInfo)
+    : (app.globalData.userInfo || {});
+}
+
 Page({
   data: {
     loading: true,
     scheduleLoading: false,
+    myAppointmentsLoading: false,
+    cancellingAppointmentId: null,
+    managerLoading: false,
+    managerCancellingId: null,
+    isLoggedIn: false,
+    isTeacher: false,
+    hasAdminAccess: false,
+    canManageAppointments: false,
+    showManagerView: false,
     teachers: [],
     weekLabels: WEEK_LABELS,
     today: '',
@@ -184,6 +223,15 @@ Page({
     monthDays: [],
     appointmentsByDate: {},
     selectedDayAppointments: [],
+    myAppointments: [],
+    managerTabs: [],
+    managerCurrentTab: 'all',
+    managerCurrentAppointments: [],
+    managerAppointmentBuckets: {
+      created: [],
+      assigned: [],
+      all: []
+    },
     timeSlots: buildTimeSlots([], '', '', '', 0),
     selectedSlotLabel: '',
     slotDisplayText: '',
@@ -206,14 +254,63 @@ Page({
     });
   },
 
+  refreshUserState() {
+    const userInfo = getCurrentUserInfo();
+    const canManage = canManageAppointments(userInfo);
+    const isAdmin = hasAdminAccess(userInfo);
+    const nextState = {
+      isLoggedIn: !!wx.getStorageSync('token'),
+      isTeacher: userInfo?.role === 'teacher',
+      hasAdminAccess: isAdmin,
+      canManageAppointments: canManage
+    };
+
+    if (!canManage && this.data.showManagerView) {
+      nextState.showManagerView = false;
+    }
+
+    this.setData(nextState);
+    return userInfo;
+  },
+
+  requestWithAuth(options) {
+    const fallbackToken = wx.getStorageSync('token');
+    const authHeader = typeof app.getAuthHeader === 'function'
+      ? app.getAuthHeader()
+      : (fallbackToken ? { Authorization: fallbackToken } : {});
+
+    return new Promise((resolve, reject) => {
+      wx.request({
+        ...options,
+        header: {
+          ...authHeader,
+          ...(options.header || {})
+        },
+        success: resolve,
+        fail: reject
+      });
+    });
+  },
+
   onLoad() {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
+      return;
+    }
+
     const now = new Date();
     const today = formatDate(now);
     const initialDate = getInitialViewDate(now);
     const initialDateKey = formatDate(initialDate);
     const currentMonth = formatMonthKey(initialDate);
+    const userInfo = getCurrentUserInfo();
+    const canManage = canManageAppointments(userInfo);
+    const isAdmin = hasAdminAccess(userInfo);
 
     this.setData({
+      isLoggedIn: !!wx.getStorageSync('token'),
+      isTeacher: userInfo?.role === 'teacher',
+      hasAdminAccess: isAdmin,
+      canManageAppointments: canManage,
       today,
       currentMonth,
       monthLabel: formatMonthLabel(currentMonth),
@@ -227,13 +324,201 @@ Page({
 
     this.loadTeachers();
     this.loadMonthData(currentMonth, initialDateKey);
+    this.loadMyAppointments();
   },
 
   onShow() {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
+      return;
+    }
+
     this.refreshNowState();
+    this.refreshUserState();
     if (this.data.currentMonth) {
       this.loadMonthData(this.data.currentMonth, this.data.selectedDate, true);
     }
+    this.loadMyAppointments();
+    if (this.data.canManageAppointments && this.data.showManagerView) {
+      this.loadManagerAppointments();
+    }
+  },
+
+  loadMyAppointments() {
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      this.setData({
+        myAppointments: [],
+        myAppointmentsLoading: false,
+        isLoggedIn: false
+      });
+      return;
+    }
+
+    this.setData({
+      myAppointmentsLoading: true,
+      isLoggedIn: true
+    });
+
+    wx.request({
+      url: `${app.globalData.baseUrl}/appointments/mine`,
+      method: 'GET',
+      header: typeof app.getAuthHeader === 'function' ? app.getAuthHeader() : { Authorization: token },
+      success: (res) => {
+        this.setData({ myAppointmentsLoading: false });
+        if (res.statusCode !== 200) {
+          wx.showToast({
+            title: res.data?.error || '预约记录加载失败',
+            icon: 'none'
+          });
+          return;
+        }
+
+        this.setData({
+          myAppointments: Array.isArray(res.data?.items) ? res.data.items : []
+        });
+      },
+      fail: () => {
+        this.setData({ myAppointmentsLoading: false });
+        wx.showToast({
+          title: '预约记录加载失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  syncManagerAppointments(tabKey) {
+    const managerCurrentAppointments = this.data.managerAppointmentBuckets[tabKey] || [];
+    this.setData({
+      managerCurrentTab: tabKey,
+      managerCurrentAppointments
+    });
+  },
+
+  loadManagerAppointments() {
+    const userInfo = getCurrentUserInfo();
+    if (!canManageAppointments(userInfo)) {
+      this.setData({
+        managerLoading: false,
+        managerTabs: [],
+        managerCurrentAppointments: [],
+        managerAppointmentBuckets: {
+          created: [],
+          assigned: [],
+          all: []
+        }
+      });
+      return;
+    }
+
+    this.setData({ managerLoading: true });
+    this.requestWithAuth({
+      url: `${app.globalData.baseUrl}/teacher/appointments`,
+      method: 'GET'
+    }).then((res) => {
+      if (res.statusCode !== 200) {
+        this.setData({ managerLoading: false });
+        wx.showToast({
+          title: res.data?.error || '预约加载失败',
+          icon: 'none'
+        });
+        return;
+      }
+
+      const managerAppointmentBuckets = {
+        created: Array.isArray(res.data?.createdByMe) ? res.data.createdByMe : [],
+        assigned: Array.isArray(res.data?.assignedToMe) ? res.data.assignedToMe : [],
+        all: Array.isArray(res.data?.allAppointments) ? res.data.allAppointments : []
+      };
+      const managerTabs = buildManagerTabs(userInfo, managerAppointmentBuckets);
+      const fallbackTab = managerTabs[0]?.key || 'created';
+      const managerCurrentTab = managerTabs.some((item) => item.key === this.data.managerCurrentTab)
+        ? this.data.managerCurrentTab
+        : fallbackTab;
+
+      this.setData({
+        managerLoading: false,
+        managerTabs,
+        managerAppointmentBuckets
+      });
+      this.syncManagerAppointments(managerCurrentTab);
+    }).catch(() => {
+      this.setData({ managerLoading: false });
+      wx.showToast({
+        title: '预约加载失败',
+        icon: 'none'
+      });
+    });
+  },
+
+  switchManagerTab(e) {
+    const tabKey = e.currentTarget.dataset.tab;
+    if (!tabKey || tabKey === this.data.managerCurrentTab) {
+      return;
+    }
+
+    this.syncManagerAppointments(tabKey);
+  },
+
+  toggleManagerView() {
+    if (!this.data.canManageAppointments) {
+      return;
+    }
+
+    const showManagerView = !this.data.showManagerView;
+    this.setData({ showManagerView });
+    if (showManagerView) {
+      this.loadManagerAppointments();
+    }
+  },
+
+  confirmCancelAppointment(appointmentId, stateKey) {
+    if (!appointmentId || this.data[stateKey]) {
+      return;
+    }
+
+    wx.showModal({
+      title: '取消预约',
+      content: '确认取消这条预约吗？取消后该时段会重新开放。',
+      success: (modalRes) => {
+        if (!modalRes.confirm) {
+          return;
+        }
+
+        this.setData({ [stateKey]: appointmentId });
+        this.requestWithAuth({
+          url: `${app.globalData.baseUrl}/appointments/${appointmentId}`,
+          method: 'DELETE'
+        }).then((res) => {
+          this.setData({ [stateKey]: null });
+          if (res.statusCode !== 200 || !res.data?.success) {
+            wx.showToast({
+              title: res.data?.error || '取消失败',
+              icon: 'none'
+            });
+            return;
+          }
+
+          wx.showToast({
+            title: '已取消预约',
+            icon: 'success'
+          });
+          if (this.data.currentMonth) {
+            this.loadMonthData(this.data.currentMonth, this.data.selectedDate, true);
+          }
+          this.loadMyAppointments();
+          if (this.data.canManageAppointments) {
+            this.loadManagerAppointments();
+          }
+        }).catch(() => {
+          this.setData({ [stateKey]: null });
+          wx.showToast({
+            title: '取消失败',
+            icon: 'none'
+          });
+        });
+      }
+    });
   },
 
   loadTeachers() {
@@ -511,6 +796,7 @@ Page({
           slotDisplayText: buildSlotDisplayText(this.data.selectedDateLabel, '')
         });
         this.loadMonthData(this.data.currentMonth, this.data.selectedDate, true);
+        this.loadMyAppointments();
 
         if (res.data.notificationStatus && res.data.notificationStatus !== 'sent') {
           setTimeout(() => {
@@ -531,5 +817,15 @@ Page({
         });
       }
     });
+  },
+
+  cancelAppointment(e) {
+    const appointmentId = Number(e.currentTarget.dataset.id || 0);
+    this.confirmCancelAppointment(appointmentId, 'cancellingAppointmentId');
+  },
+
+  cancelManagerAppointment(e) {
+    const appointmentId = Number(e.currentTarget.dataset.id || 0);
+    this.confirmCancelAppointment(appointmentId, 'managerCancellingId');
   }
 });

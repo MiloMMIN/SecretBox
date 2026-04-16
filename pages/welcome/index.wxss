@@ -498,6 +498,98 @@
   box-shadow: 0 12rpx 26rpx rgba(77, 105, 98, 0.16);
 }
 
+.enter-button[disabled],
+.reserve-button[disabled] {
+  pointer-events: none;
+}
+
+.login-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  background: rgba(45, 38, 31, 0.28);
+  backdrop-filter: blur(10rpx);
+}
+
+.login-panel {
+  width: 100%;
+  max-width: 560rpx;
+  padding: 44rpx 38rpx 40rpx;
+  border-radius: 34rpx;
+  background: rgba(255, 249, 241, 0.94);
+  box-shadow:
+    0 28rpx 60rpx rgba(68, 57, 46, 0.18),
+    inset 0 2rpx 0 rgba(255, 255, 255, 0.78);
+  border: 2rpx solid rgba(255, 255, 255, 0.72);
+}
+
+.login-panel-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 42rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  background: rgba(121, 150, 139, 0.14);
+  color: #5d786f;
+  font-size: 22rpx;
+}
+
+.login-panel-title {
+  margin-top: 20rpx;
+  color: #3c4a44;
+  font-size: 42rpx;
+  font-weight: 600;
+  line-height: 1.32;
+}
+
+.login-panel-desc {
+  margin-top: 14rpx;
+  color: #715f4f;
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.admin-invite-hint {
+  margin-top: 18rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 20rpx;
+  background: rgba(121, 150, 139, 0.12);
+  color: #52675f;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.login-panel-input {
+  margin-top: 28rpx;
+  height: 88rpx;
+  padding: 0 26rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.82);
+  border: 2rpx solid rgba(121, 150, 139, 0.18);
+  color: #3c4a44;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.login-panel-button {
+  margin-top: 24rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #79968b, #5d786f);
+  color: #fff;
+  font-size: 28rpx;
+  box-shadow: 0 18rpx 30rpx rgba(93, 120, 111, 0.22);
+}
+
+.login-panel-button[disabled] {
+  opacity: 0.72;
+}
+
 .welcome-page.is-entering .hero-copy,
 .welcome-page.is-entering .footer-copy,
 .welcome-page.is-entering .enter-button,

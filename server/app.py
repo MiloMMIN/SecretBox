@@ -59,6 +59,12 @@ class Config:
         openid.strip() for openid in os.getenv('TEACHER_OPENIDS', '').split(',') if openid.strip()
     ]
     TEACHER_INVITE_CODE = os.getenv('TEACHER_INVITE_CODE', '').strip()
+    SUPER_ADMIN_OPENIDS = [
+        openid.strip() for openid in os.getenv('SUPER_ADMIN_OPENIDS', '').split(',') if openid.strip()
+    ]
+    SUPER_ADMIN_WECHAT_IDS = [
+        wechat_id.strip() for wechat_id in os.getenv('SUPER_ADMIN_WECHAT_IDS', '').split(',') if wechat_id.strip()
+    ]
     DINGTALK_WEBHOOK_URL = os.getenv('DINGTALK_WEBHOOK_URL', '').strip()
     DINGTALK_WEBHOOK_SECRET = os.getenv('DINGTALK_WEBHOOK_SECRET', '').strip()
 
@@ -73,6 +79,10 @@ WX_APP_ID = app.config.get('WX_APP_ID')
 WX_APP_SECRET = app.config.get('WX_APP_SECRET')
 TEACHER_OPENIDS = set(app.config.get('TEACHER_OPENIDS', []))
 TEACHER_INVITE_CODE = app.config.get('TEACHER_INVITE_CODE', '')
+SUPER_ADMIN_OPENIDS = set(app.config.get('SUPER_ADMIN_OPENIDS', []))
+SUPER_ADMIN_WECHAT_IDS = {
+    item.strip().lower() for item in app.config.get('SUPER_ADMIN_WECHAT_IDS', []) if item.strip()
+}
 WECHAT_ACCESS_TOKEN_CACHE = {
     'token': None,
     'expires_at': None
@@ -80,6 +90,7 @@ WECHAT_ACCESS_TOKEN_CACHE = {
 DEFAULT_QUESTION_PAGE_SIZE = 20
 MAX_QUESTION_PAGE_SIZE = 50
 LOCAL_TIME_OFFSET_HOURS = 8
+ACTIVE_APPOINTMENT_STATUSES = {'booked'}
 APPOINTMENT_SLOT_STARTS = [
     '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
     '14:00', '14:30', '15:00', '15:30'
@@ -114,6 +125,45 @@ def parse_month_key(month_key):
         return None
 
     return datetime(month_date.year, month_date.month, 1)
+
+
+def normalize_wechat_id(value):
+    return (value or '').strip().lower()
+
+
+def get_user_admin_level(user):
+    if not user:
+        return 'none'
+
+    if user.openid in SUPER_ADMIN_OPENIDS:
+        return 'super_admin'
+
+    normalized_wechat_id = normalize_wechat_id(getattr(user, 'wechat_id', ''))
+    if normalized_wechat_id and normalized_wechat_id in SUPER_ADMIN_WECHAT_IDS:
+        return 'super_admin'
+
+    stored_level = getattr(user, 'admin_level', 'none') or 'none'
+    return stored_level if stored_level in {'none', 'admin'} else 'admin'
+
+
+def has_admin_access(user):
+    return get_user_admin_level(user) in {'admin', 'super_admin'}
+
+
+def is_super_admin(user):
+    return get_user_admin_level(user) == 'super_admin'
+
+
+def can_use_teacher_features(user):
+    return bool(user and (user.role == 'teacher' or has_admin_access(user)))
+
+
+def can_manage_admins(user):
+    return has_admin_access(user)
+
+
+def can_manage_teachers(user):
+    return has_admin_access(user)
 
 
 def is_placeholder_wechat_value(value):
@@ -295,7 +345,29 @@ celery.conf.update(app.config)
 def resolve_user_role(openid, current_role=None):
     if current_role == 'teacher':
         return 'teacher'
-    return 'teacher' if openid in TEACHER_OPENIDS else 'student'
+    return 'teacher' if openid in TEACHER_OPENIDS or openid in SUPER_ADMIN_OPENIDS else 'student'
+
+
+def sync_default_teacher_role(user, openid=None):
+    if not user:
+        return False
+
+    candidate_openid = openid or getattr(user, 'openid', '')
+    should_be_teacher = (
+        candidate_openid in TEACHER_OPENIDS
+        or candidate_openid in SUPER_ADMIN_OPENIDS
+        or is_super_admin(user)
+    )
+
+    if not should_be_teacher or user.role == 'teacher':
+        return False
+
+    user.role = 'teacher'
+    profile = get_or_create_teacher_profile(user)
+    if user.nickname and not profile.display_name:
+        profile.display_name = user.nickname
+    profile.is_active = True
+    return True
 
 
 def serialize_user(user):
@@ -304,7 +376,9 @@ def serialize_user(user):
         'nickName': user.nickname,
         'nickname': user.nickname,
         'avatarUrl': '',
-        'role': user.role
+        'role': user.role,
+        'adminLevel': get_user_admin_level(user),
+        'wechatId': getattr(user, 'wechat_id', '') or ''
     }
 
 
@@ -344,11 +418,96 @@ def serialize_teacher_invite(invite):
         'id': invite.id,
         'nickName': invite.display_name or '待激活教师',
         'avatarUrl': ensure_absolute_file_url(invite.avatar_url or ''),
-        'desc': invite.description or '待教师本人激活',
+        'desc': invite.description or '待教师本人通过分享链接开通',
         'isActive': invite.is_active,
         'inviteCode': invite.invite_code,
+        'claimedUserId': invite.claimed_user_id,
         'claimed': invite.claimed_user_id is not None
     }
+
+
+def get_admin_application_status_label(status):
+    labels = {
+        'pending': '待审核',
+        'approved': '已通过',
+        'rejected': '已拒绝'
+    }
+    return labels.get(status, '待审核')
+
+
+def get_admin_invitation_status_label(status):
+    labels = {
+        'pending': '待认领',
+        'claimed': '已生效',
+        'revoked': '已撤回'
+    }
+    return labels.get(status, '待认领')
+
+
+def ensure_admin_application_record(user, wechat_id='', reason=''):
+    application = AdminApplication.query.filter_by(user_id=user.id).first()
+    if not application:
+        application = AdminApplication(
+            user_id=user.id,
+            wechat_id=(wechat_id or getattr(user, 'wechat_id', '') or '')[:64],
+            reason=(reason or '由管理员邀请授权')[:255],
+            status='pending'
+        )
+        db.session.add(application)
+        db.session.flush()
+    return application
+
+
+def apply_admin_invitation_to_user(invitation, user, review_note='已根据管理员邀请自动通过'):
+    review_time = datetime.utcnow()
+
+    if not is_super_admin(user):
+        user.admin_level = 'admin'
+
+    invitation.status = 'claimed'
+    invitation.claimed_user_id = user.id
+    invitation.processed_at = review_time
+
+    application = ensure_admin_application_record(
+        user,
+        getattr(user, 'wechat_id', '') or '',
+        '由管理员邀请授权'
+    )
+    application.wechat_id = ((getattr(user, 'wechat_id', '') or '')[:64])
+    application.status = 'approved'
+    application.review_note = (review_note or '已根据管理员邀请自动通过')[:255]
+    application.reviewed_by_user_id = invitation.created_by_user_id
+    application.reviewed_at = review_time
+    return application
+
+
+def claim_pending_admin_invitation_for_user(user, application=None):
+    normalized_wechat_id = normalize_wechat_id(getattr(user, 'wechat_id', ''))
+    if not normalized_wechat_id:
+        return None
+
+    invite = AdminInvitation.query.filter(
+        func.lower(AdminInvitation.target_wechat_id) == normalized_wechat_id,
+        AdminInvitation.status == 'pending'
+    ).order_by(AdminInvitation.created_at.asc()).first()
+
+    if not invite:
+        return None
+
+    application = application or ensure_admin_application_record(user, user.wechat_id, '由管理员邀请授权')
+    apply_admin_invitation_to_user(invite, user, '已根据管理员邀请自动通过')
+    return invite
+
+
+def apply_teacher_invitation_to_user(invitation, user):
+    user.role = 'teacher'
+    profile = get_or_create_teacher_profile(user)
+    profile.display_name = (invitation.display_name or user.nickname or '未命名教师')[:64]
+    profile.avatar_url = invitation.avatar_url or ''
+    profile.description = (invitation.description or '已认证教师')[:255]
+    profile.is_active = invitation.is_active
+    invitation.claimed_user_id = user.id
+    return profile
 
 
 def get_teacher_display_name(user, profile=None):
@@ -362,8 +521,45 @@ def get_teacher_display_name(user, profile=None):
     return (active_profile.display_name if active_profile and active_profile.display_name else user.nickname) or '未命名教师'
 
 
-def serialize_appointment(appointment):
+def get_appointment_status_label(status):
+    labels = {
+        'booked': '已预约',
+        'cancelled': '已取消'
+    }
+    return labels.get(status, status or '未知状态')
+
+
+def get_appointment_start_at(appointment):
+    return datetime.strptime(
+        f"{appointment.appointment_date.strftime('%Y-%m-%d')} {appointment.slot_start}",
+        '%Y-%m-%d %H:%M'
+    )
+
+
+def is_appointment_cancellable(appointment):
+    if appointment.status not in ACTIVE_APPOINTMENT_STATUSES:
+        return False
+
+    return get_appointment_start_at(appointment) > get_local_now()
+
+
+def can_cancel_appointment(user, appointment):
+    if not user or not is_appointment_cancellable(appointment):
+        return False
+
+    if appointment.user_id == user.id:
+        return True
+
+    if appointment.teacher_id == user.id:
+        return True
+
+    return has_admin_access(user)
+
+
+def serialize_appointment(appointment, viewer=None):
     teacher_profile = getattr(appointment.teacher, 'teacher_profile', None) if appointment.teacher else None
+    creator = getattr(appointment, 'creator', None)
+    cancelled_by = getattr(appointment, 'cancelled_by', None)
     return {
         'id': appointment.id,
         'date': appointment.appointment_date.strftime('%Y-%m-%d'),
@@ -371,8 +567,64 @@ def serialize_appointment(appointment):
         'slotEnd': appointment.slot_end,
         'teacherId': appointment.teacher_id,
         'teacherName': get_teacher_display_name(appointment.teacher, teacher_profile),
+        'teacherAvatarUrl': get_visible_user_avatar_url(appointment.teacher),
+        'studentName': appointment.student_name,
+        'studentClass': appointment.student_class,
+        'creatorId': appointment.user_id,
+        'creatorName': creator.nickname if creator and creator.nickname else appointment.student_name,
         'durationMinutes': appointment.duration_minutes,
-        'status': appointment.status
+        'status': appointment.status,
+        'statusText': get_appointment_status_label(appointment.status),
+        'createdAt': appointment.created_at.strftime('%Y-%m-%d %H:%M'),
+        'cancelledAt': appointment.cancelled_at.strftime('%Y-%m-%d %H:%M') if getattr(appointment, 'cancelled_at', None) else '',
+        'cancelReason': getattr(appointment, 'cancel_reason', '') or '',
+        'cancelledByName': cancelled_by.nickname if cancelled_by and cancelled_by.nickname else '',
+        'isOwnedByCurrentUser': bool(viewer and appointment.user_id == viewer.id),
+        'isAssignedToCurrentUser': bool(viewer and appointment.teacher_id == viewer.id),
+        'canCancel': can_cancel_appointment(viewer, appointment) if viewer else False
+    }
+
+
+def serialize_admin_application(application):
+    applicant = getattr(application, 'user', None)
+    reviewer = getattr(application, 'reviewer', None)
+    return {
+        'id': application.id,
+        'userId': application.user_id,
+        'nickName': applicant.nickname if applicant and applicant.nickname else '未命名用户',
+        'wechatId': application.wechat_id or '',
+        'reason': application.reason or '',
+        'status': application.status,
+        'statusText': get_admin_application_status_label(application.status),
+        'reviewNote': application.review_note or '',
+        'reviewedAt': application.reviewed_at.strftime('%Y-%m-%d %H:%M') if application.reviewed_at else '',
+        'reviewedByName': reviewer.nickname if reviewer and reviewer.nickname else '',
+        'createdAt': application.created_at.strftime('%Y-%m-%d %H:%M'),
+        'updatedAt': application.updated_at.strftime('%Y-%m-%d %H:%M') if application.updated_at else '',
+        'adminLevel': get_user_admin_level(applicant) if applicant else 'none'
+    }
+
+
+def serialize_admin_invitation(invitation):
+    creator = getattr(invitation, 'creator', None)
+    claimed_user = getattr(invitation, 'claimed_user', None)
+    invitation_type = invitation.invitation_type or 'wechat_id'
+    target_wechat_id = invitation.target_wechat_id or ''
+    if invitation_type == 'share_link' and not target_wechat_id:
+        target_wechat_id = '分享链接授权'
+
+    return {
+        'id': invitation.id,
+        'targetWechatId': target_wechat_id,
+        'note': invitation.note or '',
+        'status': invitation.status,
+        'statusText': get_admin_invitation_status_label(invitation.status),
+        'invitationType': invitation_type,
+        'createdAt': invitation.created_at.strftime('%Y-%m-%d %H:%M'),
+        'processedAt': invitation.processed_at.strftime('%Y-%m-%d %H:%M') if invitation.processed_at else '',
+        'createdByName': creator.nickname if creator and creator.nickname else '',
+        'claimedUserId': invitation.claimed_user_id,
+        'claimedUserName': claimed_user.nickname if claimed_user and claimed_user.nickname else ''
     }
 
 
@@ -848,7 +1100,25 @@ def ensure_teacher_user():
     user = get_authenticated_user()
     if not user:
         return None, (jsonify({'error': 'Unauthorized'}), 401)
-    if user.role != 'teacher':
+    if not can_use_teacher_features(user):
+        return None, (jsonify({'error': 'Forbidden'}), 403)
+    return user, None
+
+
+def ensure_admin_manager_user():
+    user = get_authenticated_user()
+    if not user:
+        return None, (jsonify({'error': 'Unauthorized'}), 401)
+    if not can_manage_admins(user):
+        return None, (jsonify({'error': 'Forbidden'}), 403)
+    return user, None
+
+
+def ensure_teacher_manager_user():
+    user = get_authenticated_user()
+    if not user:
+        return None, (jsonify({'error': 'Unauthorized'}), 401)
+    if not can_manage_teachers(user):
         return None, (jsonify({'error': 'Forbidden'}), 403)
     return user, None
 
@@ -889,7 +1159,9 @@ class User(db.Model):
     openid = db.Column(db.String(64), unique=True, nullable=False)
     nickname = db.Column(db.String(64))
     avatar_url = db.Column(db.String(256))
+    wechat_id = db.Column(db.String(64))
     role = db.Column(db.String(20), default='student') # student, teacher
+    admin_level = db.Column(db.String(20), nullable=False, default='none')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Question(db.Model):
@@ -959,13 +1231,46 @@ class TeacherProfile(db.Model):
 class TeacherInvite(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     invite_code = db.Column(db.String(32), unique=True, nullable=False)
+    claim_token = db.Column(db.String(64), index=True)
     display_name = db.Column(db.String(64))
     avatar_url = db.Column(db.String(512))
-    description = db.Column(db.String(255), default='待教师本人激活')
+    description = db.Column(db.String(255), default='待教师本人通过分享链接开通')
     is_active = db.Column(db.Boolean, default=True)
     created_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     claimed_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class AdminApplication(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    wechat_id = db.Column(db.String(64), nullable=False)
+    reason = db.Column(db.String(255), default='')
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    review_note = db.Column(db.String(255), default='')
+    reviewed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    reviewed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('admin_application', uselist=False, lazy=True))
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by_user_id], backref=db.backref('reviewed_admin_applications', lazy=True))
+
+
+class AdminInvitation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    target_wechat_id = db.Column(db.String(64), nullable=False)
+    note = db.Column(db.String(255), default='')
+    invitation_type = db.Column(db.String(20), nullable=False, default='wechat_id')
+    claim_token = db.Column(db.String(64), index=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    claimed_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    processed_at = db.Column(db.DateTime)
+
+    creator = db.relationship('User', foreign_keys=[created_by_user_id], backref=db.backref('created_admin_invitations', lazy=True))
+    claimed_user = db.relationship('User', foreign_keys=[claimed_user_id], backref=db.backref('claimed_admin_invitations', lazy=True))
 
 
 class Appointment(db.Model):
@@ -979,10 +1284,14 @@ class Appointment(db.Model):
     slot_end = db.Column(db.String(5), nullable=False)
     duration_minutes = db.Column(db.Integer, nullable=False, default=APPOINTMENT_DURATION_MINUTES)
     status = db.Column(db.String(20), nullable=False, default='booked')
+    cancelled_at = db.Column(db.DateTime)
+    cancelled_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    cancel_reason = db.Column(db.String(255), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     creator = db.relationship('User', foreign_keys=[user_id], backref=db.backref('appointments', lazy=True))
     teacher = db.relationship('User', foreign_keys=[teacher_id], backref=db.backref('appointment_assignments', lazy=True))
+    cancelled_by = db.relationship('User', foreign_keys=[cancelled_by_user_id], backref=db.backref('cancelled_appointments', lazy=True))
 
     __table_args__ = (
         UniqueConstraint('appointment_date', 'slot_start', name='uq_appointment_room_slot'),
@@ -1179,10 +1488,12 @@ def login():
     # 查找或创建用户
     user = User.query.filter_by(openid=openid).first()
     if not user:
-        user = User(openid=openid, role=resolve_user_role(openid))
+        user = User(openid=openid, role=resolve_user_role(openid), admin_level='none')
         db.session.add(user)
     else:
         user.role = resolve_user_role(openid, user.role)
+        if user.admin_level not in {'none', 'admin'}:
+            user.admin_level = 'admin'
     
     # 更新用户信息
     if userInfo:
@@ -1195,6 +1506,9 @@ def login():
         profile = get_or_create_teacher_profile(user)
         if user.nickname and not profile.display_name:
             profile.display_name = user.nickname
+
+    claim_pending_admin_invitation_for_user(user)
+    sync_default_teacher_role(user, openid)
 
     db.session.commit()
     
@@ -1210,6 +1524,16 @@ def get_me():
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
+    changed = False
+    if claim_pending_admin_invitation_for_user(user):
+        changed = True
+
+    if sync_default_teacher_role(user):
+        changed = True
+
+    if changed:
+        db.session.commit()
+
     return jsonify(serialize_user(user))
 
 
@@ -1221,14 +1545,27 @@ def update_me_profile():
 
     data = request.json or {}
     nickname = (data.get('nickName') or data.get('nickname') or '').strip()
+    wechat_id = (data.get('wechatId') or '').strip()
 
     if nickname:
         user.nickname = nickname[:64]
+
+    if wechat_id:
+        duplicated_user = User.query.filter(
+            User.id != user.id,
+            func.lower(User.wechat_id) == normalize_wechat_id(wechat_id)
+        ).first()
+        if duplicated_user:
+            return jsonify({'error': '该微信号已被其他账号占用'}), 400
+        user.wechat_id = wechat_id[:64]
 
     if user.role == 'teacher':
         profile = get_or_create_teacher_profile(user)
         if nickname:
             profile.display_name = user.nickname
+
+    claim_pending_admin_invitation_for_user(user)
+    sync_default_teacher_role(user)
 
     db.session.commit()
     return jsonify({'success': True, 'userInfo': serialize_user(user)})
@@ -1269,12 +1606,26 @@ def upgrade_me_role():
 
 @app.route('/api/teachers', methods=['GET'])
 def get_teachers():
-    teachers = User.query.filter_by(role='teacher').order_by(User.created_at.asc()).all()
+    teachers = User.query.options(
+        joinedload(User.teacher_profile)
+    ).filter(
+        or_(
+            User.role == 'teacher',
+            User.teacher_profile.has()
+        )
+    ).order_by(User.created_at.asc()).all()
     result = []
+    seen_user_ids = set()
     for teacher in teachers:
-        profile = get_or_create_teacher_profile(teacher)
-        if profile.is_active:
-            result.append(serialize_teacher_profile(teacher, profile))
+        profile = teacher.teacher_profile
+        if not profile and teacher.role == 'teacher':
+            profile = get_or_create_teacher_profile(teacher)
+        if not teacher or teacher.id in seen_user_ids:
+            continue
+        if not profile or not profile.is_active:
+            continue
+        result.append(serialize_teacher_profile(teacher, profile))
+        seen_user_ids.add(teacher.id)
     db.session.commit()
     return jsonify(result)
 
@@ -1294,7 +1645,7 @@ def get_appointment_calendar():
         ).filter(
             Appointment.appointment_date >= month_date.date(),
             Appointment.appointment_date < next_month.date(),
-            Appointment.status == 'booked'
+            Appointment.status.in_(list(ACTIVE_APPOINTMENT_STATUSES))
         ).order_by(Appointment.appointment_date.asc(), Appointment.slot_start.asc()).all()
     except Exception as exc:
         print(f'Warning: appointment calendar query failed: {exc}')
@@ -1380,15 +1731,412 @@ def create_appointment():
 
     return jsonify({
         'success': True,
-        'appointment': serialize_appointment(appointment),
+        'appointment': serialize_appointment(appointment, user),
         'notificationStatus': notification_status,
         'notificationMessage': notification_message
     }), 201
 
 
+@app.route('/api/appointments/mine', methods=['GET'])
+def get_my_appointments():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    appointments = Appointment.query.options(
+        joinedload(Appointment.teacher).joinedload(User.teacher_profile),
+        joinedload(Appointment.creator),
+        joinedload(Appointment.cancelled_by)
+    ).filter(
+        Appointment.user_id == user.id
+    ).order_by(
+        Appointment.appointment_date.desc(),
+        Appointment.slot_start.desc(),
+        Appointment.id.desc()
+    ).all()
+
+    return jsonify({
+        'items': [serialize_appointment(item, user) for item in appointments]
+    })
+
+
+@app.route('/api/appointments/<int:appointment_id>', methods=['DELETE'])
+def cancel_appointment(appointment_id):
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    appointment = Appointment.query.options(
+        joinedload(Appointment.teacher).joinedload(User.teacher_profile),
+        joinedload(Appointment.creator),
+        joinedload(Appointment.cancelled_by)
+    ).filter_by(id=appointment_id).first_or_404()
+
+    if appointment.user_id != user.id and appointment.teacher_id != user.id and not has_admin_access(user):
+        return jsonify({'error': 'Forbidden'}), 403
+
+    if appointment.status == 'cancelled':
+        return jsonify({'success': True, 'appointment': serialize_appointment(appointment, user)})
+
+    if not is_appointment_cancellable(appointment):
+        return jsonify({'error': '当前预约已无法取消'}), 400
+
+    payload = request.get_json(silent=True) or {}
+    cancel_reason = (payload.get('reason') or '').strip()
+    appointment.status = 'cancelled'
+    appointment.cancelled_at = datetime.utcnow()
+    appointment.cancelled_by_user_id = user.id
+    appointment.cancel_reason = cancel_reason[:255]
+    db.session.commit()
+
+    appointment = Appointment.query.options(
+        joinedload(Appointment.teacher).joinedload(User.teacher_profile),
+        joinedload(Appointment.creator),
+        joinedload(Appointment.cancelled_by)
+    ).filter_by(id=appointment.id).first()
+    return jsonify({'success': True, 'appointment': serialize_appointment(appointment, user)})
+
+
+@app.route('/api/teacher/appointments', methods=['GET'])
+def get_teacher_appointments():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if user.role != 'teacher' and not has_admin_access(user):
+        return jsonify({'error': 'Forbidden'}), 403
+
+    base_query = Appointment.query.options(
+        joinedload(Appointment.teacher).joinedload(User.teacher_profile),
+        joinedload(Appointment.creator),
+        joinedload(Appointment.cancelled_by)
+    )
+
+    created_by_me = base_query.filter(
+        Appointment.user_id == user.id
+    ).order_by(
+        Appointment.appointment_date.desc(),
+        Appointment.slot_start.desc(),
+        Appointment.id.desc()
+    ).all()
+
+    assigned_to_me = []
+    if user.role == 'teacher':
+        assigned_to_me = base_query.filter(
+            Appointment.teacher_id == user.id
+        ).order_by(
+            Appointment.appointment_date.desc(),
+            Appointment.slot_start.desc(),
+            Appointment.id.desc()
+        ).all()
+
+    all_appointments = []
+    if has_admin_access(user):
+        all_appointments = base_query.order_by(
+            Appointment.appointment_date.desc(),
+            Appointment.slot_start.desc(),
+            Appointment.id.desc()
+        ).all()
+
+    return jsonify({
+        'createdByMe': [serialize_appointment(item, user) for item in created_by_me],
+        'assignedToMe': [serialize_appointment(item, user) for item in assigned_to_me],
+        'allAppointments': [serialize_appointment(item, user) for item in all_appointments]
+    })
+
+
+@app.route('/api/admin/applications/me', methods=['GET'])
+def get_my_admin_application():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    application = AdminApplication.query.options(
+        joinedload(AdminApplication.user),
+        joinedload(AdminApplication.reviewer)
+    ).filter_by(user_id=user.id).first()
+    return jsonify({
+        'application': serialize_admin_application(application) if application else None,
+        'adminLevel': get_user_admin_level(user)
+    })
+
+
+@app.route('/api/admin/applications', methods=['POST'])
+def submit_admin_application():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    if can_manage_admins(user):
+        return jsonify({'error': '当前账号已具备管理权限'}), 400
+
+    data = request.json or {}
+    wechat_id = (data.get('wechatId') or '').strip()
+    reason = (data.get('reason') or '').strip()
+
+    if not wechat_id:
+        return jsonify({'error': '请填写微信号'}), 400
+
+    duplicated_user = User.query.filter(
+        User.id != user.id,
+        func.lower(User.wechat_id) == normalize_wechat_id(wechat_id)
+    ).first()
+    if duplicated_user:
+        return jsonify({'error': '该微信号已被其他账号占用'}), 400
+
+    user.wechat_id = wechat_id[:64]
+    application = AdminApplication.query.filter_by(user_id=user.id).first()
+    if not application:
+        application = AdminApplication(user_id=user.id)
+        db.session.add(application)
+
+    application.wechat_id = wechat_id[:64]
+    application.reason = reason[:255]
+    application.status = 'pending'
+    application.review_note = ''
+    application.reviewed_by_user_id = None
+    application.reviewed_at = None
+
+    claim_pending_admin_invitation_for_user(user, application)
+    db.session.commit()
+
+    application = AdminApplication.query.options(
+        joinedload(AdminApplication.user),
+        joinedload(AdminApplication.reviewer)
+    ).filter_by(user_id=user.id).first()
+    return jsonify({
+        'success': True,
+        'application': serialize_admin_application(application),
+        'userInfo': serialize_user(user)
+    })
+
+
+@app.route('/api/admin/applications', methods=['GET'])
+def get_admin_applications():
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    applications = AdminApplication.query.options(
+        joinedload(AdminApplication.user),
+        joinedload(AdminApplication.reviewer)
+    ).order_by(
+        AdminApplication.created_at.desc(),
+        AdminApplication.id.desc()
+    ).all()
+
+    return jsonify({
+        'items': [serialize_admin_application(item) for item in applications]
+    })
+
+
+@app.route('/api/admin/applications/<int:application_id>/review', methods=['POST'])
+def review_admin_application(application_id):
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    application = AdminApplication.query.options(
+        joinedload(AdminApplication.user),
+        joinedload(AdminApplication.reviewer)
+    ).filter_by(id=application_id).first_or_404()
+    payload = request.json or {}
+    action = (payload.get('action') or '').strip().lower()
+    review_note = (payload.get('reviewNote') or '').strip()
+    if action not in {'approve', 'reject'}:
+        return jsonify({'error': 'Invalid review action'}), 400
+
+    review_time = datetime.utcnow()
+    application.status = 'approved' if action == 'approve' else 'rejected'
+    application.review_note = review_note[:255]
+    application.reviewed_by_user_id = user.id
+    application.reviewed_at = review_time
+
+    if application.user:
+        application.user.wechat_id = (application.wechat_id or application.user.wechat_id or '')[:64]
+        if action == 'approve':
+            application.user.admin_level = 'admin'
+
+    db.session.commit()
+    application = AdminApplication.query.options(
+        joinedload(AdminApplication.user),
+        joinedload(AdminApplication.reviewer)
+    ).filter_by(id=application.id).first()
+    return jsonify({'success': True, 'application': serialize_admin_application(application)})
+
+
+@app.route('/api/admin/invitations', methods=['GET'])
+def get_admin_invitations():
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    invitations = AdminInvitation.query.options(
+        joinedload(AdminInvitation.creator),
+        joinedload(AdminInvitation.claimed_user)
+    ).order_by(
+        AdminInvitation.created_at.desc(),
+        AdminInvitation.id.desc()
+    ).all()
+
+    return jsonify({
+        'items': [serialize_admin_invitation(item) for item in invitations]
+    })
+
+
+@app.route('/api/admin/invitations', methods=['POST'])
+def create_admin_invitation():
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    data = request.json or {}
+    invitation_type = (data.get('invitationType') or 'wechat_id').strip() or 'wechat_id'
+    target_wechat_id = (data.get('targetWechatId') or '').strip()
+    note = (data.get('note') or '').strip()
+
+    if invitation_type == 'share_link':
+        if not is_super_admin(user):
+            return jsonify({'error': '只有最高管理员可以生成分享授权链接'}), 403
+
+        force_refresh = bool(data.get('forceRefresh'))
+        existing_invitation = None
+        if not force_refresh:
+            existing_invitation = AdminInvitation.query.options(
+                joinedload(AdminInvitation.creator),
+                joinedload(AdminInvitation.claimed_user)
+            ).filter_by(
+                created_by_user_id=user.id,
+                invitation_type='share_link',
+                status='pending'
+            ).order_by(
+                AdminInvitation.created_at.desc(),
+                AdminInvitation.id.desc()
+            ).first()
+
+        if existing_invitation:
+            if note:
+                existing_invitation.note = note[:255]
+                db.session.commit()
+            return jsonify({
+                'success': True,
+                'invitation': serialize_admin_invitation(existing_invitation),
+                'shareToken': existing_invitation.claim_token or ''
+            })
+
+        invitation = AdminInvitation(
+            target_wechat_id='',
+            note=note[:255],
+            invitation_type='share_link',
+            claim_token=uuid.uuid4().hex,
+            status='pending',
+            created_by_user_id=user.id
+        )
+        db.session.add(invitation)
+        db.session.commit()
+        invitation = AdminInvitation.query.options(
+            joinedload(AdminInvitation.creator),
+            joinedload(AdminInvitation.claimed_user)
+        ).filter_by(id=invitation.id).first()
+        return jsonify({
+            'success': True,
+            'invitation': serialize_admin_invitation(invitation),
+            'shareToken': invitation.claim_token or ''
+        })
+
+    if not target_wechat_id:
+        return jsonify({'error': '请填写目标微信号'}), 400
+
+    existing_pending_invitation = AdminInvitation.query.filter(
+        func.lower(AdminInvitation.target_wechat_id) == normalize_wechat_id(target_wechat_id),
+        AdminInvitation.invitation_type == 'wechat_id',
+        AdminInvitation.status == 'pending'
+    ).first()
+    if existing_pending_invitation:
+        return jsonify({'error': '该微信号已有待生效邀请'}), 409
+
+    invitation = AdminInvitation(
+        target_wechat_id=target_wechat_id[:64],
+        note=note[:255],
+        invitation_type='wechat_id',
+        claim_token='',
+        status='pending',
+        created_by_user_id=user.id
+    )
+    db.session.add(invitation)
+
+    matched_user = User.query.filter(
+        func.lower(User.wechat_id) == normalize_wechat_id(target_wechat_id)
+    ).first()
+    if matched_user:
+        review_time = datetime.utcnow()
+        matched_user.admin_level = 'admin'
+        invitation.status = 'claimed'
+        invitation.claimed_user_id = matched_user.id
+        invitation.processed_at = review_time
+
+        application = ensure_admin_application_record(matched_user, matched_user.wechat_id, '由管理员邀请授权')
+        application.status = 'approved'
+        application.review_note = '已根据管理员邀请自动通过'
+        application.reviewed_by_user_id = user.id
+        application.reviewed_at = review_time
+
+    db.session.commit()
+    invitation = AdminInvitation.query.options(
+        joinedload(AdminInvitation.creator),
+        joinedload(AdminInvitation.claimed_user)
+    ).filter_by(id=invitation.id).first()
+    return jsonify({'success': True, 'invitation': serialize_admin_invitation(invitation)})
+
+
+@app.route('/api/admin/invitations/claim', methods=['POST'])
+def claim_admin_invitation():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    token = ((request.json or {}).get('token') or '').strip()
+    if not token:
+        return jsonify({'error': '缺少邀请令牌'}), 400
+
+    invitation = AdminInvitation.query.options(
+        joinedload(AdminInvitation.creator),
+        joinedload(AdminInvitation.claimed_user)
+    ).filter_by(claim_token=token).first()
+
+    if not invitation or (invitation.invitation_type or 'wechat_id') != 'share_link':
+        return jsonify({'error': '邀请链接无效'}), 404
+
+    if invitation.status == 'claimed':
+        if invitation.claimed_user_id == user.id:
+            return jsonify({
+                'success': True,
+                'alreadyClaimed': True,
+                'invitation': serialize_admin_invitation(invitation),
+                'userInfo': serialize_user(user)
+            })
+        return jsonify({'error': '该邀请链接已被使用'}), 409
+
+    if invitation.status != 'pending':
+        return jsonify({'error': '该邀请链接已失效'}), 400
+
+    apply_admin_invitation_to_user(invitation, user, '已根据分享邀请自动通过')
+    db.session.commit()
+
+    invitation = AdminInvitation.query.options(
+        joinedload(AdminInvitation.creator),
+        joinedload(AdminInvitation.claimed_user)
+    ).filter_by(id=invitation.id).first()
+    return jsonify({
+        'success': True,
+        'invitation': serialize_admin_invitation(invitation),
+        'userInfo': serialize_user(user)
+    })
+
+
 @app.route('/api/teacher/profiles', methods=['GET'])
 def get_teacher_profiles():
-    user, error_response = ensure_teacher_user()
+    user, error_response = ensure_teacher_manager_user()
     if error_response:
         return error_response
 
@@ -1397,26 +2145,27 @@ def get_teacher_profiles():
     for teacher in teachers:
         profile = get_or_create_teacher_profile(teacher)
         profiles.append(serialize_teacher_profile(teacher, profile))
-    invites = TeacherInvite.query.order_by(TeacherInvite.created_at.desc()).all()
+    invites = TeacherInvite.query.filter_by(claimed_user_id=None).order_by(TeacherInvite.created_at.desc()).all()
     db.session.commit()
     return jsonify(profiles + [serialize_teacher_invite(invite) for invite in invites])
 
 
 @app.route('/api/teacher/invites', methods=['POST'])
 def create_teacher_invite():
-    user, error_response = ensure_teacher_user()
+    user, error_response = ensure_teacher_manager_user()
     if error_response:
         return error_response
 
     data = request.json or {}
     display_name = (data.get('nickName') or '').strip() or '待激活教师'
     avatar_url = sanitize_avatar_url(data.get('avatarUrl'))
-    description = (data.get('desc') or '').strip() or '待教师本人激活'
+    description = (data.get('desc') or '').strip() or '待教师本人通过分享链接开通'
     is_active = bool(data.get('isActive', True))
     invite_code = uuid.uuid4().hex[:8].upper()
 
     invite = TeacherInvite(
         invite_code=invite_code,
+        claim_token=uuid.uuid4().hex,
         display_name=display_name[:64],
         avatar_url=avatar_url[:512] if avatar_url else '',
         description=description[:255],
@@ -1425,12 +2174,16 @@ def create_teacher_invite():
     )
     db.session.add(invite)
     db.session.commit()
-    return jsonify({'success': True, 'profile': serialize_teacher_invite(invite)})
+    return jsonify({
+        'success': True,
+        'profile': serialize_teacher_invite(invite),
+        'shareToken': invite.claim_token or ''
+    })
 
 
 @app.route('/api/teacher/invites/<int:invite_id>', methods=['PUT'])
 def update_teacher_invite(invite_id):
-    user, error_response = ensure_teacher_user()
+    user, error_response = ensure_teacher_manager_user()
     if error_response:
         return error_response
 
@@ -1454,9 +2207,65 @@ def update_teacher_invite(invite_id):
     return jsonify({'success': True, 'profile': serialize_teacher_invite(invite)})
 
 
+@app.route('/api/teacher/invites/<int:invite_id>/share-link', methods=['POST'])
+def get_teacher_invite_share_link(invite_id):
+    user, error_response = ensure_teacher_manager_user()
+    if error_response:
+        return error_response
+
+    invite = TeacherInvite.query.get_or_404(invite_id)
+    if invite.claimed_user_id:
+        return jsonify({'error': '该教师邀请已被认领'}), 409
+
+    payload = request.json or {}
+    if payload.get('forceRefresh') or not invite.claim_token:
+        invite.claim_token = uuid.uuid4().hex
+        db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'profile': serialize_teacher_invite(invite),
+        'shareToken': invite.claim_token or ''
+    })
+
+
+@app.route('/api/teacher/invitations/claim', methods=['POST'])
+def claim_teacher_invitation():
+    user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    token = ((request.json or {}).get('token') or '').strip()
+    if not token:
+        return jsonify({'error': '缺少邀请令牌'}), 400
+
+    invite = TeacherInvite.query.filter_by(claim_token=token).first()
+    if not invite:
+        return jsonify({'error': '教师邀请链接无效'}), 404
+
+    if invite.claimed_user_id:
+        if invite.claimed_user_id == user.id:
+            return jsonify({
+                'success': True,
+                'alreadyClaimed': True,
+                'profile': serialize_teacher_invite(invite),
+                'userInfo': serialize_user(user)
+            })
+        return jsonify({'error': '该教师邀请链接已被使用'}), 409
+
+    apply_teacher_invitation_to_user(invite, user)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'profile': serialize_teacher_invite(invite),
+        'userInfo': serialize_user(user)
+    })
+
+
 @app.route('/api/teacher/profiles/<int:teacher_id>', methods=['PUT'])
 def update_teacher_profile(teacher_id):
-    user, error_response = ensure_teacher_user()
+    user, error_response = ensure_teacher_manager_user()
     if error_response:
         return error_response
 
@@ -1489,7 +2298,7 @@ def update_teacher_profile(teacher_id):
 
 @app.route('/api/teacher/profiles/<int:teacher_id>', methods=['DELETE'])
 def delete_teacher_profile(teacher_id):
-    user, error_response = ensure_teacher_user()
+    user, error_response = ensure_teacher_manager_user()
     if error_response:
         return error_response
 
@@ -1523,7 +2332,7 @@ def get_teacher_dashboard():
     if error_response:
         return error_response
 
-    profile = get_or_create_teacher_profile(user)
+    profile = get_or_create_teacher_profile(user) if user.role == 'teacher' else TeacherProfile.query.filter_by(user_id=user.id).first()
     today_start = datetime.combine(datetime.now().date(), datetime.min.time())
 
     def safe_count(query):
@@ -1563,13 +2372,43 @@ def get_teacher_dashboard():
     except Exception:
         unread_count = 0
 
+    try:
+        appointment_created_count = Appointment.query.filter(
+            Appointment.user_id == user.id,
+            Appointment.status.in_(list(ACTIVE_APPOINTMENT_STATUSES))
+        ).count()
+    except Exception:
+        appointment_created_count = 0
+
+    try:
+        appointment_assigned_count = Appointment.query.filter(
+            Appointment.teacher_id == user.id,
+            Appointment.status.in_(list(ACTIVE_APPOINTMENT_STATUSES))
+        ).count()
+    except Exception:
+        appointment_assigned_count = 0
+
+    try:
+        pending_admin_application_count = AdminApplication.query.filter_by(status='pending').count()
+    except Exception:
+        pending_admin_application_count = 0
+
+    try:
+        pending_admin_invitation_count = AdminInvitation.query.filter_by(status='pending').count()
+    except Exception:
+        pending_admin_invitation_count = 0
+
     return jsonify({
         'pendingCount': pending_count,
         'reviewPendingCount': review_pending_count,
         'todayCount': today_count,
         'inboxCount': inbox_count,
         'squareCount': square_count,
-        'unreadCount': unread_count
+        'unreadCount': unread_count,
+        'appointmentCreatedCount': appointment_created_count,
+        'appointmentAssignedCount': appointment_assigned_count,
+        'pendingAdminApplicationCount': pending_admin_application_count,
+        'pendingAdminInvitationCount': pending_admin_invitation_count
     })
 
 
@@ -1579,7 +2418,9 @@ def mark_teacher_notifications_read():
     if error_response:
         return error_response
 
-    profile = get_or_create_teacher_profile(user)
+    profile = get_or_create_teacher_profile(user) if user.role == 'teacher' else TeacherProfile.query.filter_by(user_id=user.id).first()
+    if not profile:
+        return jsonify({'success': True})
     profile.last_checked_at = datetime.utcnow()
     db.session.commit()
     return jsonify({'success': True})

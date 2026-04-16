@@ -107,6 +107,15 @@
   letter-spacing: 3rpx;
 }
 
+.share-btn {
+  width: 100%;
+  margin: 6rpx 0 0;
+  background: linear-gradient(135deg, #66BB6A, #43A047);
+  color: white;
+  border-radius: 28rpx;
+  font-size: 26rpx;
+}
+
 .copy-btn {
   background: #E8F5E9;
   color: #43A047;
@@ -114,6 +123,11 @@
   font-size: 24rpx;
   padding: 0 24rpx;
   line-height: 56rpx;
+}
+
+.share-refresh-btn {
+  width: 100%;
+  margin-top: 14rpx;
 }
 
 .form-group {

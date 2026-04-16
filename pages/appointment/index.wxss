@@ -56,6 +56,13 @@
   padding: 24rpx 10rpx 28rpx;
 }
 
+.hero-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
 .hero-kicker {
   display: inline-flex;
   align-items: center;
@@ -69,6 +76,36 @@
   color: #7b6650;
   font-size: 22rpx;
   letter-spacing: 4rpx;
+}
+
+.hero-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-shrink: 0;
+  height: 52rpx;
+  padding: 0 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 251, 245, 0.78);
+  border: 2rpx solid rgba(121, 150, 139, 0.16);
+  color: #5d786f;
+  font-size: 22rpx;
+  box-shadow: 0 10rpx 22rpx rgba(111, 89, 65, 0.06);
+}
+
+.hero-action.is-active {
+  background: linear-gradient(135deg, rgba(121, 150, 139, 0.94), rgba(93, 120, 111, 0.96));
+  color: #fff;
+  border-color: rgba(121, 150, 139, 0.26);
+}
+
+.hero-action-arrow {
+  font-size: 24rpx;
+  color: #87a097;
+}
+
+.hero-action.is-active .hero-action-arrow {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .hero-title {
@@ -452,6 +489,106 @@
   flex-shrink: 0;
 }
 
+.manager-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.manager-tab-pill {
+  padding: 16rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 251, 245, 0.74);
+  color: #7b6650;
+  font-size: 24rpx;
+  box-shadow: 0 12rpx 24rpx rgba(112, 89, 63, 0.04);
+}
+
+.manager-tab-pill.is-active {
+  background: linear-gradient(135deg, #79968b, #5d786f);
+  color: #fff;
+}
+
+
+.my-appointments-card {
+  margin-bottom: 8rpx;
+}
+
+.appointment-record {
+  margin-top: 20rpx;
+  padding: 24rpx 24rpx 22rpx;
+  border-radius: 26rpx;
+  background: rgba(255, 249, 242, 0.88);
+  border: 1rpx solid rgba(161, 138, 112, 0.08);
+  box-shadow: 0 12rpx 24rpx rgba(112, 89, 63, 0.05);
+}
+
+.appointment-record-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.appointment-record-teacher {
+  font-size: 30rpx;
+  color: #42524c;
+  font-weight: 600;
+}
+
+.appointment-record-status {
+  flex-shrink: 0;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+}
+
+.appointment-record-status.booked {
+  background: rgba(104, 138, 125, 0.14);
+  color: #5a766c;
+}
+
+.appointment-record-status.cancelled {
+  background: rgba(190, 122, 96, 0.14);
+  color: #b0604c;
+}
+
+.appointment-record-time {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #675748;
+}
+
+.appointment-record-meta,
+.appointment-record-note,
+.appointment-empty {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #8a7867;
+  line-height: 1.6;
+}
+
+.appointment-empty {
+  margin-top: 22rpx;
+  text-align: center;
+  padding: 16rpx 12rpx 8rpx;
+}
+
+.appointment-record-btn {
+  margin-top: 18rpx;
+  height: 68rpx;
+  line-height: 68rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #d7a171, #c88354);
+  color: #fff;
+  font-size: 26rpx;
+}
+
+.appointment-record-btn[disabled] {
+  background: rgba(204, 191, 177, 0.8);
+  color: rgba(255, 255, 255, 0.88);
+}
 .submit-wrap {
   padding: 28rpx 4rpx 10rpx;
 }

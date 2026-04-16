@@ -4,28 +4,21 @@
   <view class="user-card card">
     <view class="user-info">
       <view class="name-row">
-        <input type="nickname" class="user-name-input" value="{{userInfo.nickName}}" placeholder="点击修改昵称" bindinput="onNicknameChange" bindblur="onNicknameBlur" />
+        <input type="nickname" class="user-name-input" value="{{userInfo.nickName}}" placeholder="{{isLoggedIn ? '点击修改昵称' : '请输入昵称后登录'}}" bindinput="onNicknameChange" bindblur="onNicknameBlur" />
       </view>
-      <view class="user-role">{{userInfo.role === 'teacher' ? '教师' : '学生'}}</view>
+      <view class="user-role-row">
+        <view wx:for="{{userInfo.roleBadges}}" wx:key="kind" class="user-role role-{{item.kind}}">{{item.text}}</view>
+      </view>
+      <view wx:if="{{!isLoggedIn}}" class="login-hint">当前尚未登录，输入昵称后可直接登录并查看你的投递记录。</view>
+      <button wx:if="{{!isLoggedIn}}" class="login-btn" bindtap="startLogin" disabled="{{loggingIn}}">{{loggingIn ? '登录中...' : '立即登录'}}</button>
     </view>
   </view>
 
   <!-- 学生视图 -->
-  <block wx:if="{{userInfo.role === 'student' || !userInfo.role}}">
+  <block wx:if="{{isLoggedIn && !userInfo.canUseTeacherFeatures}}">
     <view class="menu-list card">
-      <view class="menu-item" bindtap="toggleTeacherUpgrade">
-        <text>教师身份激活</text>
-        <text class="arrow {{showTeacherUpgrade ? 'up' : ''}}">></text>
-      </view>
-      <view class="sub-list" wx:if="{{showTeacherUpgrade}}">
-        <view class="upgrade-tip">小程序无法识别微信号本身，教师身份建议使用邀请码激活。</view>
-        <input class="upgrade-input" password placeholder="请输入教师邀请码" value="{{teacherInviteCode}}" bindinput="onTeacherInviteCodeInput" />
-        <button class="upgrade-btn" bindtap="activateTeacherRole">激活为教师</button>
-      </view>
-
-      <!-- 我的提问 -->
       <view class="menu-item" bindtap="toggleMyQuestions">
-        <text>我的提问</text>
+        <text>我的投递</text>
         <text class="arrow {{showMyQuestions ? 'up' : ''}}">></text>
       </view>
       <view class="sub-list" wx:if="{{showMyQuestions}}">
@@ -37,55 +30,37 @@
             <view class="sub-detail">{{item.detailText}}</view>
           </view>
         </block>
-        <view class="empty-sub" wx:else>暂无提问记录</view>
+        <view class="empty-sub" wx:else>暂无私密投递记录</view>
       </view>
 
-      <!-- 我的回复 -->
-      <view class="menu-item" bindtap="toggleMyReplies">
-        <text>我的回复</text>
-        <text class="arrow {{showMyReplies ? 'up' : ''}}">></text>
+      <view class="menu-item" bindtap="toggleTeacherUpgrade">
+        <text>教师身份开通</text>
+        <text class="arrow {{showTeacherUpgrade ? 'up' : ''}}">></text>
       </view>
-      <view class="sub-list" wx:if="{{showMyReplies}}">
-        <block wx:if="{{myReplies.length > 0}}">
-          <view class="sub-item" wx:for="{{myReplies}}" wx:key="id">
-            <view class="sub-content">回复：{{item.content}}</view>
-            <view class="sub-time">{{item.time}}</view>
-          </view>
-        </block>
-        <view class="empty-sub" wx:else>暂无回复记录</view>
+      <view class="sub-list" wx:if="{{showTeacherUpgrade}}">
+        <view class="upgrade-tip">教师身份现在由管理员通过分享链接开通。收到教师分享卡片后，打开小程序并登录即可自动激活。</view>
       </view>
     </view>
   </block>
 
   <!-- 教师视图 -->
-  <block wx:if="{{userInfo.role === 'teacher'}}">
+  <block wx:if="{{isLoggedIn && userInfo.canUseTeacherFeatures}}">
     <view class="section-title">工作台</view>
-    <view class="dashboard-grid">
-      <view class="grid-item card" bindtap="openTeacherScope" data-scope="pending" data-title="待回复">
-        <view class="count">{{teacherStats.pendingCount}}</view>
-        <view class="label">待回复</view>
-      </view>
-      <view class="grid-item card" bindtap="openTeacherScope" data-scope="today" data-title="今日留言">
-        <view class="count">{{teacherStats.todayCount}}</view>
-        <view class="label">今日留言</view>
-      </view>
-    </view>
-
     <view class="menu-list card">
       <view class="menu-item" bindtap="showInbox">
         <text>树洞信箱 (私密)</text>
         <view class="badge">{{teacherStats.inboxCount}}</view>
       </view>
-      <view class="menu-item" bindtap="showSquareManager">
-        <text>广场管理</text>
+      <view class="menu-item" wx:if="{{userInfo.canManageAdmins}}" bindtap="showCounselorManager">
+        <text>教师管理</text>
+        <text class="arrow">></text>
+      </view>
+      <view class="menu-item" bindtap="showAdminManager" wx:if="{{userInfo.canManageAdmins}}">
+        <text>管理员管理</text>
         <view class="menu-right">
-          <view wx:if="{{teacherStats.reviewPendingCount > 0}}" class="badge">待审核 {{teacherStats.reviewPendingCount}}</view>
+          <view wx:if="{{teacherStats.pendingAdminApplicationCount > 0}}" class="badge">{{teacherStats.pendingAdminApplicationCount}}</view>
           <text class="arrow">></text>
         </view>
-      </view>
-      <view class="menu-item" bindtap="showCounselorManager">
-        <text>投递对象管理</text>
-        <text class="arrow">></text>
       </view>
       <view class="menu-item" bindtap="exportData">
         <text>导出数据</text>
@@ -99,8 +74,7 @@
       <block wx:elif="{{teacherQuestions.length > 0}}">
         <view class="teacher-question-item" wx:for="{{teacherQuestions}}" wx:key="id" bindtap="goToDetail" data-id="{{item.id}}">
           <view class="teacher-question-top">
-            <text class="teacher-question-type {{item.isPublic ? 'public' : 'private'}}">{{item.isPublic ? '广场' : '私密'}}</text>
-            <text class="teacher-question-time">{{item.time}}</text>
+            <text class="teacher-question-time">私密投递 · {{item.time}}</text>
           </view>
           <view class="teacher-question-content">{{item.content}}</view>
           <view class="teacher-question-meta">
@@ -113,6 +87,19 @@
         </view>
       </block>
       <view wx:else class="empty-sub">暂无相关内容</view>
+    </view>
+  </block>
+
+  <block wx:if="{{isLoggedIn && userInfo.canUseTeacherFeatures && userInfo.role !== 'teacher'}}">
+    <view class="section-title">教师身份</view>
+    <view class="menu-list card">
+      <view class="menu-item" bindtap="toggleTeacherUpgrade">
+        <text>教师身份开通</text>
+        <text class="arrow {{showTeacherUpgrade ? 'up' : ''}}">></text>
+      </view>
+      <view class="sub-list" wx:if="{{showTeacherUpgrade}}">
+        <view class="upgrade-tip">如果你希望自己出现在投递对象中，请让管理员在“教师管理”里分享一条教师开通链接给你。打开后登录即可自动获得教师身份，管理员权限会保留。</view>
+      </view>
     </view>
   </block>
 

@@ -31,10 +31,18 @@ Page({
   },
 
   onLoad: function (options) {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
+      return;
+    }
+
     this.loadCounselors();
   },
 
   onShow() {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
+      return;
+    }
+
     this.loadCounselors();
   },
 
@@ -93,6 +101,10 @@ Page({
   },
 
   selectCounselor: function(e) {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin()) {
+      return;
+    }
+
     const { id, name, avatar, avatarText } = e.currentTarget.dataset;
     const index = this.data.counselors.findIndex(c => c.id === id);
     const finalAvatar = (index !== -1 && this.data.counselors[index].avatarError) ? '' : (avatar || '');
