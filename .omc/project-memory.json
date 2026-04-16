@@ -98,6 +98,103 @@
       ]
     }
   },
-  "hotPaths": [],
+  "hotPaths": [
+    {
+      "path": "pages\\welcome\\index.js",
+      "accessCount": 9,
+      "lastAccessed": 1776321183200,
+      "type": "file"
+    },
+    {
+      "path": "pages\\appointment\\index.js",
+      "accessCount": 7,
+      "lastAccessed": 1776321164593,
+      "type": "file"
+    },
+    {
+      "path": "pages\\post\\create.js",
+      "accessCount": 5,
+      "lastAccessed": 1776321177043,
+      "type": "file"
+    },
+    {
+      "path": "pages\\post\\select_counselor.js",
+      "accessCount": 3,
+      "lastAccessed": 1776321155836,
+      "type": "file"
+    },
+    {
+      "path": "pages\\square_post\\index.js",
+      "accessCount": 2,
+      "lastAccessed": 1776320902372,
+      "type": "file"
+    },
+    {
+      "path": "pages\\welcome\\index.wxml",
+      "accessCount": 2,
+      "lastAccessed": 1776321028955,
+      "type": "file"
+    },
+    {
+      "path": "pages\\index\\index.js",
+      "accessCount": 1,
+      "lastAccessed": 1776320775891,
+      "type": "file"
+    },
+    {
+      "path": "pages\\index\\index.wxml",
+      "accessCount": 1,
+      "lastAccessed": 1776320776601,
+      "type": "file"
+    },
+    {
+      "path": "app.js",
+      "accessCount": 1,
+      "lastAccessed": 1776320776996,
+      "type": "file"
+    },
+    {
+      "path": "pages\\profile\\profile.js",
+      "accessCount": 1,
+      "lastAccessed": 1776320790975,
+      "type": "file"
+    },
+    {
+      "path": "app.json",
+      "accessCount": 1,
+      "lastAccessed": 1776320791094,
+      "type": "file"
+    },
+    {
+      "path": "pages\\appointment\\index.wxml",
+      "accessCount": 1,
+      "lastAccessed": 1776320821630,
+      "type": "file"
+    },
+    {
+      "path": "pages\\post\\select_counselor.wxml",
+      "accessCount": 1,
+      "lastAccessed": 1776320821767,
+      "type": "file"
+    },
+    {
+      "path": "pages\\profile\\profile.wxml",
+      "accessCount": 1,
+      "lastAccessed": 1776320850663,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 1,
+      "lastAccessed": 1776320851460,
+      "type": "directory"
+    },
+    {
+      "path": "pages\\teacher\\square_manage\\index.js",
+      "accessCount": 1,
+      "lastAccessed": 1776320902540,
+      "type": "file"
+    }
+  ],
   "userDirectives": []
 }

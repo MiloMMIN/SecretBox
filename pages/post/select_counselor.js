@@ -31,18 +31,10 @@ Page({
   },
 
   onLoad: function (options) {
-    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
-      return;
-    }
-
     this.loadCounselors();
   },
 
   onShow() {
-    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
-      return;
-    }
-
     this.loadCounselors();
   },
 

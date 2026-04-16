@@ -7,6 +7,7 @@ Page({
     isLoggedIn: false,
     showLoginGate: false,
     loginLoading: false,
+    pendingAction: '',
     hasAdminInviteToken: false,
     hasTeacherInviteToken: false,
     adminInviteClaiming: false,
@@ -91,11 +92,25 @@ Page({
       entering: false,
       checkingLogin: false,
       isLoggedIn: false,
-      showLoginGate: true,
+      showLoginGate: false,
       loginLoading: false,
       nickName: preservedNickName
     });
     return null;
+  },
+
+  showLoginPanel(action = '') {
+    this.setData({
+      showLoginGate: true,
+      pendingAction: action
+    });
+  },
+
+  hideLoginPanel() {
+    this.setData({
+      showLoginGate: false,
+      pendingAction: ''
+    });
   },
 
   syncLoginGate() {
@@ -335,6 +350,15 @@ Page({
             icon: 'success'
           });
         }
+
+        const { pendingAction } = this.data;
+        if (pendingAction === 'enterApp') {
+          this.setData({ pendingAction: '' });
+          this.enterApp();
+        } else if (pendingAction === 'goToAppointment') {
+          this.setData({ pendingAction: '' });
+          this.goToAppointment();
+        }
       });
     }).catch((error) => {
       wx.hideLoading();
@@ -364,7 +388,9 @@ Page({
   },
 
   enterApp() {
-    if (!this.ensureLoggedInBeforeEnter()) {
+    if (!this.data.isLoggedIn) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      this.showLoginPanel('enterApp');
       return;
     }
 
@@ -409,7 +435,9 @@ Page({
   },
 
   goToAppointment() {
-    if (!this.ensureLoggedInBeforeEnter()) {
+    if (!this.data.isLoggedIn) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      this.showLoginPanel('goToAppointment');
       return;
     }
 

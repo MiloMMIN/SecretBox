@@ -293,10 +293,6 @@ Page({
   },
 
   onLoad() {
-    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
-      return;
-    }
-
     const now = new Date();
     const today = formatDate(now);
     const initialDate = getInitialViewDate(now);
@@ -328,10 +324,6 @@ Page({
   },
 
   onShow() {
-    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
-      return;
-    }
-
     this.refreshNowState();
     this.refreshUserState();
     if (this.data.currentMonth) {
@@ -753,6 +745,13 @@ Page({
     const targetSlot = this.data.timeSlots.find((item) => item.start === slotStart);
     if (!targetSlot || targetSlot.occupied || targetSlot.expired) {
       wx.showToast({ title: '该时段不可预约', icon: 'none' });
+      return;
+    }
+
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      wx.showToast({ title: '请先登录后再预约', icon: 'none' });
+      wx.navigateTo({ url: '/pages/welcome/index' });
       return;
     }
 

@@ -90,7 +90,7 @@
     </button>
   </view>
 
-  <view wx:if="{{showLoginGate && !checkingLogin}}" class="login-gate" catchtap="noop">
+  <view wx:if="{{showLoginGate && !checkingLogin}}" class="login-gate" bindtap="hideLoginPanel">
     <view class="login-panel" catchtap="noop">
       <view class="login-panel-tag">欢迎来到智心树洞</view>
       <view class="login-panel-title">请先登录，再进入树洞</view>
