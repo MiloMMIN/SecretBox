@@ -76,7 +76,7 @@
     <button
       class="enter-button"
       bindtap="enterApp"
-      disabled="{{entering || !isLoggedIn || checkingLogin || loginLoading}}"
+      disabled="{{entering || checkingLogin || loginLoading}}"
     >
       {{entering ? '正在进入树洞深处' : '轻触，进入树洞深处'}}
     </button>
@@ -84,7 +84,7 @@
     <button
       class="reserve-button"
       bindtap="goToAppointment"
-      disabled="{{entering || !isLoggedIn || checkingLogin || loginLoading}}"
+      disabled="{{entering || checkingLogin || loginLoading}}"
     >
       见面，来到树下相约
     </button>

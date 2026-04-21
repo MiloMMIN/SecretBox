@@ -179,13 +179,6 @@
   border-bottom: 1px solid rgba(121, 150, 139, 0.08);
 }
 
-.upgrade-tip {
-  font-size: 24rpx;
-  color: #7a6a5b;
-  line-height: 1.6;
-  padding: 16rpx 0;
-}
-
 .upgrade-input,
 .upgrade-textarea {
   width: 100%;

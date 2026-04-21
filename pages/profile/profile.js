@@ -97,7 +97,6 @@ Page({
     userInfo: {},
     isLoggedIn: false,
     loggingIn: false,
-    showTeacherUpgrade: false,
     myQuestions: [],
     teacherStats: {
       inboxCount: 0,
@@ -326,20 +325,6 @@ Page({
     if (this.data.showMyQuestions && this.data.myQuestions.length === 0) {
         this.getMyQuestions();
     }
-  },
-
-  toggleTeacherUpgrade() {
-    if (!wx.getStorageSync('token')) {
-      wx.showToast({
-        title: '请先登录',
-        icon: 'none'
-      });
-      return;
-    }
-
-    this.setData({
-      showTeacherUpgrade: !this.data.showTeacherUpgrade
-    });
   },
 
   onImageError(e) {
