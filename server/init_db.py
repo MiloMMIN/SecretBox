@@ -146,6 +146,12 @@ def ensure_schema_updates():
             "CREATE INDEX idx_admin_invitation_claim_token ON admin_invitation (claim_token)"
         )
 
+    if 'admin_application' not in tables:
+        print("检测到 admin_application 表不存在，将由 create_all 创建。")
+
+    if 'admin_invitation' not in tables:
+        print("检测到 admin_invitation 表不存在，将由 create_all 创建。")
+
 def init_db():
     print("等待数据库连接...")
     max_retries = 30

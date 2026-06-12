@@ -68,10 +68,6 @@
   margin-bottom: 20rpx;
 }
 
-.share-card {
-  margin-bottom: 20rpx;
-}
-
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -223,17 +219,6 @@
   background: rgba(255, 255, 255, 0.86);
   color: #7b6650;
   border: 2rpx solid rgba(121, 150, 139, 0.12);
-}
-
-.full-btn {
-  width: 100%;
-}
-
-.share-hint {
-  margin-top: 18rpx;
-  font-size: 22rpx;
-  line-height: 1.7;
-  color: #7c6a5a;
 }
 
 .empty-state {

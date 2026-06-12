@@ -170,11 +170,6 @@ App({
     return adminLevel === 'admin' || adminLevel === 'super_admin';
   },
 
-  canUseTeacherFeatures(userInfo) {
-    const normalizedUser = this.normalizeUserInfo(userInfo) || {};
-    return normalizedUser.role === 'teacher' || this.hasAdminAccess(normalizedUser);
-  },
-
   isSuperAdmin(userInfo) {
     const adminLevel = userInfo?.adminLevel || userInfo?.admin_level || 'none';
     return adminLevel === 'super_admin';
@@ -302,7 +297,7 @@ App({
   refreshTeacherNotificationBadge() {
     const token = wx.getStorageSync('token');
     const userInfo = this.globalData.userInfo;
-    if (!token || !userInfo || !this.canUseTeacherFeatures(userInfo)) {
+    if (!token || !userInfo || userInfo.role !== 'teacher') {
       wx.removeTabBarBadge({ index: 1 });
       return;
     }

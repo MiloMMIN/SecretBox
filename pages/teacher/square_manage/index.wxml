@@ -2,13 +2,13 @@
   <view class="pending-hero">
     <view class="pending-badge">待定功能</view>
     <view class="pending-title">广场管理暂未开放</view>
-    <view class="pending-desc">教师端的公开广场审核链路已暂停。当前请在“我的”中处理私密树洞与教师管理。</view>
+    <view class="pending-desc">教师端的公开广场审核链路已暂停。当前请在“我的”中处理私密树洞与投递对象管理。</view>
   </view>
 
   <view class="pending-card">
     <view class="pending-card-title">当前建议</view>
     <view class="pending-card-item">前往“我的”查看树洞信箱</view>
-    <view class="pending-card-item">继续使用教师管理与导出功能</view>
+    <view class="pending-card-item">继续使用投递对象管理与导出功能</view>
   </view>
 
   <button class="primary-btn" bindtap="goToProfile">返回我的</button>

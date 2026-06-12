@@ -15,7 +15,7 @@
   </view>
 
   <!-- 学生视图 -->
-  <block wx:if="{{isLoggedIn && !userInfo.canUseTeacherFeatures}}">
+  <block wx:if="{{isLoggedIn && userInfo.role !== 'teacher'}}">
     <view class="menu-list card">
       <view class="menu-item" bindtap="toggleMyQuestions">
         <text>我的投递</text>
@@ -36,15 +36,15 @@
   </block>
 
   <!-- 教师视图 -->
-  <block wx:if="{{isLoggedIn && userInfo.canUseTeacherFeatures}}">
+  <block wx:if="{{isLoggedIn && userInfo.role === 'teacher'}}">
     <view class="section-title">工作台</view>
     <view class="menu-list card">
       <view class="menu-item" bindtap="showInbox">
         <text>树洞信箱 (私密)</text>
         <view class="badge">{{teacherStats.inboxCount}}</view>
       </view>
-      <view class="menu-item" wx:if="{{userInfo.canManageAdmins}}" bindtap="showCounselorManager">
-        <text>教师管理</text>
+      <view class="menu-item" bindtap="showCounselorManager">
+        <text>投递对象管理</text>
         <text class="arrow">></text>
       </view>
       <view class="menu-item" bindtap="showAdminManager" wx:if="{{userInfo.canManageAdmins}}">
@@ -79,6 +79,16 @@
         </view>
       </block>
       <view wx:else class="empty-sub">暂无相关内容</view>
+    </view>
+  </block>
+
+  <block wx:if="{{isLoggedIn && userInfo.canManageAdmins && userInfo.role !== 'teacher'}}">
+    <view class="section-title">管理台</view>
+    <view class="menu-list card">
+      <view class="menu-item" bindtap="showAdminManager">
+        <text>管理员管理</text>
+        <text class="arrow">></text>
+      </view>
     </view>
   </block>
 

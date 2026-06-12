@@ -553,16 +553,6 @@
   line-height: 1.7;
 }
 
-.admin-invite-hint {
-  margin-top: 18rpx;
-  padding: 18rpx 20rpx;
-  border-radius: 20rpx;
-  background: rgba(121, 150, 139, 0.12);
-  color: #52675f;
-  font-size: 24rpx;
-  line-height: 1.7;
-}
-
 .login-panel-input {
   margin-top: 28rpx;
   height: 88rpx;

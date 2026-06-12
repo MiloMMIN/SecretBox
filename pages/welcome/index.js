@@ -7,10 +7,6 @@ Page({
     isLoggedIn: false,
     showLoginGate: false,
     loginLoading: false,
-    pendingAction: '',
-    hasAdminInviteToken: false,
-    hasTeacherInviteToken: false,
-    adminInviteClaiming: false,
     nickName: '',
     topPadding: 56,
     bottomPadding: 28,
@@ -92,25 +88,11 @@ Page({
       entering: false,
       checkingLogin: false,
       isLoggedIn: false,
-      showLoginGate: false,
+      showLoginGate: true,
       loginLoading: false,
       nickName: preservedNickName
     });
     return null;
-  },
-
-  showLoginPanel(action = '') {
-    this.setData({
-      showLoginGate: true,
-      pendingAction: action
-    });
-  },
-
-  hideLoginPanel() {
-    this.setData({
-      showLoginGate: false,
-      pendingAction: ''
-    });
   },
 
   syncLoginGate() {
@@ -152,7 +134,7 @@ Page({
         nickName: userInfo?.nickName || userInfo?.nickname || preservedNickName
       });
 
-      return this.claimPendingInvites(userInfo);
+      return userInfo;
     }).catch(() => {
       const latestToken = wx.getStorageSync('token');
       const fallbackUserInfo = typeof app.normalizeUserInfo === 'function'
@@ -171,136 +153,7 @@ Page({
         nickName: fallbackUserInfo.nickName || fallbackUserInfo.nickname || preservedNickName
       });
 
-      return this.claimPendingInvites(fallbackUserInfo);
-    });
-  },
-
-  claimPendingInvites(userInfo) {
-    return this.claimAdminInviteIfNeeded(userInfo).then((nextUserInfo) => {
-      return this.claimTeacherInviteIfNeeded(nextUserInfo);
-    });
-  },
-
-  claimAdminInviteIfNeeded(userInfo) {
-    const inviteToken = (this.pendingAdminInviteToken || '').trim();
-    const token = wx.getStorageSync('token');
-
-    if (!inviteToken || !token || this.data.adminInviteClaiming) {
-      return Promise.resolve(userInfo);
-    }
-
-    this.setData({ adminInviteClaiming: true });
-
-    return new Promise((resolve) => {
-      wx.request({
-        url: `${app.globalData.baseUrl}/admin/invitations/claim`,
-        method: 'POST',
-        header: { Authorization: token },
-        data: { token: inviteToken },
-        success: (res) => {
-          this.setData({ adminInviteClaiming: false });
-
-          if (res.statusCode === 200 && res.data?.success) {
-            const latestUserInfo = typeof app.normalizeUserInfo === 'function'
-              ? app.normalizeUserInfo(res.data.userInfo || userInfo)
-              : (res.data.userInfo || userInfo);
-
-            app.globalData.userInfo = latestUserInfo;
-            app.globalData.isLoggedIn = true;
-            wx.setStorageSync('userInfo', latestUserInfo);
-            if (typeof app.refreshTeacherNotificationBadge === 'function') {
-              app.refreshTeacherNotificationBadge();
-            }
-
-            this.pendingAdminInviteToken = '';
-            this.setData({ hasAdminInviteToken: false });
-
-            if (!res.data.alreadyClaimed) {
-              wx.showToast({
-                title: '已开通管理员权限',
-                icon: 'success'
-              });
-            }
-
-            resolve(latestUserInfo);
-            return;
-          }
-
-          if (res.statusCode >= 400) {
-            this.pendingAdminInviteToken = '';
-            this.setData({ hasAdminInviteToken: false });
-            wx.showToast({
-              title: res.data?.error || '管理员邀请已失效',
-              icon: 'none'
-            });
-          }
-
-          resolve(userInfo);
-        },
-        fail: () => {
-          this.setData({ adminInviteClaiming: false });
-          resolve(userInfo);
-        }
-      });
-    });
-  },
-
-  claimTeacherInviteIfNeeded(userInfo) {
-    const inviteToken = (this.pendingTeacherInviteToken || '').trim();
-    const token = wx.getStorageSync('token');
-
-    if (!inviteToken || !token) {
-      return Promise.resolve(userInfo);
-    }
-
-    return new Promise((resolve) => {
-      wx.request({
-        url: `${app.globalData.baseUrl}/teacher/invitations/claim`,
-        method: 'POST',
-        header: { Authorization: token },
-        data: { token: inviteToken },
-        success: (res) => {
-          if (res.statusCode === 200 && res.data?.success) {
-            const latestUserInfo = typeof app.normalizeUserInfo === 'function'
-              ? app.normalizeUserInfo(res.data.userInfo || userInfo)
-              : (res.data.userInfo || userInfo);
-
-            app.globalData.userInfo = latestUserInfo;
-            app.globalData.isLoggedIn = true;
-            wx.setStorageSync('userInfo', latestUserInfo);
-            if (typeof app.refreshTeacherNotificationBadge === 'function') {
-              app.refreshTeacherNotificationBadge();
-            }
-
-            this.pendingTeacherInviteToken = '';
-            this.setData({ hasTeacherInviteToken: false });
-
-            if (!res.data.alreadyClaimed) {
-              wx.showToast({
-                title: '已开通教师身份',
-                icon: 'success'
-              });
-            }
-
-            resolve(latestUserInfo);
-            return;
-          }
-
-          if (res.statusCode >= 400) {
-            this.pendingTeacherInviteToken = '';
-            this.setData({ hasTeacherInviteToken: false });
-            wx.showToast({
-              title: res.data?.error || '教师邀请已失效',
-              icon: 'none'
-            });
-          }
-
-          resolve(userInfo);
-        },
-        fail: () => {
-          resolve(userInfo);
-        }
-      });
+      return fallbackUserInfo;
     });
   },
 
@@ -312,8 +165,6 @@ Page({
 
   startLogin() {
     const nickName = (this.data.nickName || '').trim();
-    const hasPendingAdminInvite = !!(this.pendingAdminInviteToken || '').trim();
-    const hasPendingTeacherInvite = !!(this.pendingTeacherInviteToken || '').trim();
     if (!nickName) {
       wx.showToast({
         title: '请先输入昵称',
@@ -343,22 +194,9 @@ Page({
         nickName: userInfo?.nickName || nickName
       });
 
-      this.claimPendingInvites(userInfo).then(() => {
-        if (!hasPendingAdminInvite && !hasPendingTeacherInvite) {
-          wx.showToast({
-            title: '登录成功',
-            icon: 'success'
-          });
-        }
-
-        const { pendingAction } = this.data;
-        if (pendingAction === 'enterApp') {
-          this.setData({ pendingAction: '' });
-          this.enterApp();
-        } else if (pendingAction === 'goToAppointment') {
-          this.setData({ pendingAction: '' });
-          this.goToAppointment();
-        }
+      wx.showToast({
+        title: '登录成功',
+        icon: 'success'
       });
     }).catch((error) => {
       wx.hideLoading();
@@ -388,9 +226,7 @@ Page({
   },
 
   enterApp() {
-    if (!this.data.isLoggedIn) {
-      wx.showToast({ title: '请先登录', icon: 'none' });
-      this.showLoginPanel('enterApp');
+    if (!this.ensureLoggedInBeforeEnter()) {
       return;
     }
 
@@ -435,9 +271,7 @@ Page({
   },
 
   goToAppointment() {
-    if (!this.data.isLoggedIn) {
-      wx.showToast({ title: '请先登录', icon: 'none' });
-      this.showLoginPanel('goToAppointment');
+    if (!this.ensureLoggedInBeforeEnter()) {
       return;
     }
 

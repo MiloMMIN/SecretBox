@@ -34,10 +34,12 @@
     </view>
 
     <view wx:if="{{editor.kind === 'invite'}}" class="invite-box">
-      <view class="label">教师分享链接</view>
-      <button class="share-btn" open-type="share" disabled="{{!editor.shareToken || shareTokenLoading || saving}}">{{editor.shareToken ? '分享教师开通链接' : '准备教师分享链接中...'}}</button>
-      <button class="copy-btn share-refresh-btn" bindtap="refreshInviteShareLink" disabled="{{shareTokenLoading || saving}}">{{shareTokenLoading ? '重新生成中...' : '重新生成分享链接'}}</button>
-      <view class="hint">把这条分享链接发给教师本人，对方打开并登录后会自动开通教师身份。</view>
+      <view class="label">教师邀请码</view>
+      <view class="invite-code-row">
+        <text class="invite-code">{{editor.inviteCode || '保存后自动生成'}}</text>
+        <button class="copy-btn" bindtap="copyInviteCode" disabled="{{!editor.inviteCode}}">复制</button>
+      </view>
+      <view class="hint">该邀请码仅保留给旧版教师迁移或兼容接入使用；常规管理员授权请前往“管理员管理”。</view>
     </view>
 
     <button class="save-btn" bindtap="saveProfile" disabled="{{saving}}">{{saving ? '保存中...' : (creating ? '创建教师分享链接' : '保存教师设置')}}</button>

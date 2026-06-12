@@ -293,6 +293,10 @@ Page({
   },
 
   onLoad() {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
+      return;
+    }
+
     const now = new Date();
     const today = formatDate(now);
     const initialDate = getInitialViewDate(now);
@@ -324,6 +328,10 @@ Page({
   },
 
   onShow() {
+    if (typeof app.requireLogin === 'function' && !app.requireLogin({ showToast: false })) {
+      return;
+    }
+
     this.refreshNowState();
     this.refreshUserState();
     if (this.data.currentMonth) {
