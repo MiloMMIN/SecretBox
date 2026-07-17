@@ -13,3 +13,8 @@ server/__pycache__/
 server/**/*.pyc
 **/__pycache__/
 **/*.pyc
+
+# Local agent / IDE harness state (never commit)
+.omc/
+.omx/
+.claude/
