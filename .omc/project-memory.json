@@ -1,0 +1,88 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1775641888160,
+  "projectRoot": "D:\\Desktop\\share\\script\\SecretBox",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "pages",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "pages": {
+      "path": "pages",
+      "purpose": "Page components",
+      "fileCount": 0,
+      "lastAccessed": 1775641888090,
+      "keyFiles": []
+    },
+    "server": {
+      "path": "server",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1775641888091,
+      "keyFiles": [
+        "app.py",
+        "config.env",
+        "config.env.template",
+        "docker-compose.yml",
+        "Dockerfile"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 1,
+      "lastAccessed": 1775641888092,
+      "keyFiles": [
+        "test_image_upload.py"
+      ]
+    },
+    "tools": {
+      "path": "tools",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775641888092,
+      "keyFiles": [
+        "load_test.py"
+      ]
+    },
+    "server\\data": {
+      "path": "server\\data",
+      "purpose": "Data files",
+      "fileCount": 1,
+      "lastAccessed": 1775641888093,
+      "keyFiles": [
+        "sensitive_words.txt"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

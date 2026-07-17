@@ -76,6 +76,13 @@
   color: #999;
 }
 
+.review-tip {
+  padding: 0 0 30rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #78909C;
+}
+
 .submit-btn {
   background: linear-gradient(135deg, #66BB6A, #43A047);
   color: white;

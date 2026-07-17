@@ -4,17 +4,23 @@ Page({
   data: {
     questions: [],
     allQuestions: [],
+    page: 1,
+    pageSize: 20,
+    hasMore: true,
+    loadingQuestions: false,
     currentSort: 'time',
     searchKeyword: '',
     showLoginModal: false,
+    loginSubmitting: false,
     userInfo: {
-      avatarUrl: '',
       nickName: ''
     },
     // 详情页相关
     showDetail: false,
     currentQuestion: {},
-    replyContent: ''
+    replyContent: '',
+    replyImages: [],
+    uploadingReplyImage: false
   },
 
   onLoad: function (options) {
@@ -33,12 +39,6 @@ Page({
   },
 
   // --- 登录逻辑 ---
-  onChooseAvatar(e) {
-    const { avatarUrl } = e.detail;
-    this.setData({
-      'userInfo.avatarUrl': avatarUrl
-    });
-  },
 
   onNicknameChange(e) {
     this.setData({
@@ -47,45 +47,80 @@ Page({
   },
 
   confirmLogin() {
-    const { avatarUrl, nickName } = this.data.userInfo;
-    if (!avatarUrl || !nickName) {
-      wx.showToast({ title: '请完善信息', icon: 'none' });
+    const nickName = (this.data.userInfo.nickName || '').trim();
+    if (!nickName) {
+      wx.showToast({ title: '请输入昵称', icon: 'none' });
+      return;
+    }
+
+    if (this.data.loginSubmitting) {
       return;
     }
     
+    this.setData({ loginSubmitting: true });
     wx.showLoading({ title: '登录中...' });
-    app.login(this.data.userInfo).then(user => {
+    app.login({ nickName }).then(() => {
       wx.hideLoading();
-      this.setData({ showLoginModal: false });
-      wx.showToast({ title: '欢迎回来', icon: 'success' });
+      this.setData({ showLoginModal: false, loginSubmitting: false });
+      wx.showToast({
+        title: '欢迎回来',
+        icon: 'success'
+      });
       this.loadQuestions();
     }).catch(err => {
       wx.hideLoading();
+      this.setData({ loginSubmitting: false });
       console.error(err);
-      // Mock for development if server fails
-      if (err.includes && err.includes('request:fail')) {
-         wx.showToast({ title: '服务器连接失败，使用模拟模式', icon: 'none' });
-         this.setData({ showLoginModal: false });
-         app.globalData.isLoggedIn = true;
-         this.loadQuestions(); // Load mock data logic if needed, but here we assume loadQuestions calls API
-      } else {
-        wx.showToast({ title: '登录失败', icon: 'none' });
-      }
+      wx.showToast({
+        title: typeof err === 'string' ? err : (err?.message || err?.errMsg || '登录失败'),
+        icon: 'none'
+      });
     });
   },
 
-  loadQuestions: function() {
+  loadQuestions(options = {}) {
+    const { append = false } = options;
+    if (this.data.loadingQuestions) {
+      return;
+    }
+
+    if (append && !this.data.hasMore) {
+      return;
+    }
+
+    const targetPage = append ? (this.data.page + 1) : 1;
+    const token = wx.getStorageSync('token');
+    this.setData({ loadingQuestions: true });
     wx.request({
       url: `${app.globalData.baseUrl}/questions`,
       method: 'GET',
+      header: token ? { 'Authorization': token } : {},
       data: {
         search: this.data.searchKeyword,
-        sort: this.data.currentSort
+        sort: this.data.currentSort,
+        page: targetPage,
+        pageSize: this.data.pageSize
       },
       success: (res) => {
         if (res.statusCode === 200) {
-          this.setData({ questions: res.data });
+          const payload = res.data || {};
+          const items = Array.isArray(payload) ? payload : (payload.items || []);
+          const pagination = Array.isArray(payload) ? null : (payload.pagination || {});
+          const normalizedItems = items.map((item) => app.normalizeQuestion(item));
+          this.setData({
+            questions: append ? [...this.data.questions, ...normalizedItems] : normalizedItems,
+            page: targetPage,
+            hasMore: pagination ? !!pagination.hasMore : (normalizedItems.length >= this.data.pageSize)
+          });
+          return;
         }
+        wx.showToast({ title: res.data?.error || '列表加载失败', icon: 'none' });
+      },
+      fail: () => {
+        wx.showToast({ title: '列表加载失败', icon: 'none' });
+      },
+      complete: () => {
+        this.setData({ loadingQuestions: false });
       }
     });
   },
@@ -106,6 +141,13 @@ Page({
     this.loadQuestions();
   },
 
+  onReachBottom() {
+    if (!app.globalData.isLoggedIn) {
+      return;
+    }
+    this.loadQuestions({ append: true });
+  },
+
   // --- 详情页逻辑 ---
   goToDetail: function(e) {
     const id = e.currentTarget.dataset.id;
@@ -115,14 +157,16 @@ Page({
 
   fetchQuestionDetail(id) {
     wx.showLoading({ title: '加载中' });
+    const token = wx.getStorageSync('token');
     wx.request({
       url: `${app.globalData.baseUrl}/questions/${id}`,
       method: 'GET',
+      header: token ? { 'Authorization': token } : {},
       success: (res) => {
         wx.hideLoading();
         if (res.statusCode === 200) {
           this.setData({
-            currentQuestion: res.data,
+            currentQuestion: app.normalizeQuestion(res.data),
             showDetail: true
           });
         }
@@ -138,9 +182,171 @@ Page({
     this.setData({ replyContent: e.detail.value });
   },
 
+  chooseReplyImages() {
+    if (this.data.uploadingReplyImage) {
+      return;
+    }
+
+    const remainCount = 3 - this.data.replyImages.length;
+    if (remainCount <= 0) {
+      wx.showToast({
+        title: '最多上传3张图片',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.chooseMedia({
+      count: remainCount,
+      mediaType: ['image'],
+      sourceType: ['album', 'camera'],
+      success: (res) => {
+        const files = (res.tempFiles || []).map((item) => item.tempFilePath);
+        if (!files.length) {
+          return;
+        }
+        this.uploadReplyImages(files);
+      }
+    });
+  },
+
+  uploadReplyImages(filePaths) {
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      return;
+    }
+
+    this.setData({ uploadingReplyImage: true });
+
+    const uploaded = [];
+    const uploadNext = (index) => {
+      if (index >= filePaths.length) {
+        this.setData({
+          replyImages: [...this.data.replyImages, ...uploaded],
+          uploadingReplyImage: false
+        });
+        return;
+      }
+
+      wx.uploadFile({
+        url: `${app.globalData.baseUrl}/uploads/image`,
+        filePath: filePaths[index],
+        name: 'file',
+        header: {
+          'Authorization': token
+        },
+        success: (res) => {
+          let data = {};
+          try {
+            data = JSON.parse(res.data || '{}');
+          } catch (error) {
+            this.setData({ uploadingReplyImage: false });
+            wx.showToast({
+              title: '图片上传失败',
+              icon: 'none'
+            });
+            return;
+          }
+
+          if (res.statusCode === 200 && data.success) {
+            uploaded.push(app.normalizeFileUrl(data.url));
+            uploadNext(index + 1);
+            return;
+          }
+
+          this.setData({ uploadingReplyImage: false });
+          wx.showToast({
+            title: data.error || '图片上传失败',
+            icon: 'none'
+          });
+        },
+        fail: () => {
+          this.setData({ uploadingReplyImage: false });
+          wx.showToast({
+            title: '图片上传失败',
+            icon: 'none'
+          });
+        }
+      });
+    };
+
+    uploadNext(0);
+  },
+
+  removeReplyImage(e) {
+    const index = e.currentTarget.dataset.index;
+    const nextImages = [...this.data.replyImages];
+    nextImages.splice(index, 1);
+    this.setData({ replyImages: nextImages });
+  },
+
+  previewReplyImage(e) {
+    const url = e.currentTarget.dataset.url;
+    const urls = e.currentTarget.dataset.urls;
+    wx.previewImage({
+      current: url,
+      urls: urls && urls.length ? urls : [url]
+    });
+  },
+
+  toggleStar(e) {
+    const qid = e.currentTarget.dataset.id;
+    this.requestToggleStar(qid);
+  },
+
+  toggleCurrentQuestionStar() {
+    if (!this.data.currentQuestion.id) {
+      return;
+    }
+    this.requestToggleStar(this.data.currentQuestion.id, true);
+  },
+
+  requestToggleStar(qid, fromDetail = false) {
+    const token = wx.getStorageSync('token');
+    if (!token) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      return;
+    }
+
+    wx.request({
+      url: `${app.globalData.baseUrl}/questions/${qid}/star`,
+      method: 'POST',
+      header: {
+        'Authorization': token
+      },
+      success: (res) => {
+        if (res.statusCode !== 200 || !res.data.success) {
+          wx.showToast({ title: res.data?.error || '收藏失败', icon: 'none' });
+          return;
+        }
+
+        const questions = this.data.questions.map((item) => item.id === qid ? {
+          ...item,
+          stars: res.data.stars,
+          starred: res.data.starred
+        } : item);
+        this.setData({ questions });
+
+        if (fromDetail || (this.data.currentQuestion && this.data.currentQuestion.id === qid)) {
+          this.setData({
+            currentQuestion: {
+              ...this.data.currentQuestion,
+              stars: res.data.stars,
+              starred: res.data.starred
+            }
+          });
+        }
+      },
+      fail: () => {
+        wx.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
+      }
+    });
+  },
+
   submitReply() {
-    if (!this.data.replyContent.trim()) {
-      wx.showToast({ title: '请输入内容', icon: 'none' });
+    if (!this.data.replyContent.trim() && this.data.replyImages.length === 0) {
+      wx.showToast({ title: '请输入内容或上传图片', icon: 'none' });
       return;
     }
     
@@ -154,15 +360,17 @@ Page({
         'Authorization': wx.getStorageSync('token')
       },
       data: {
-        content: this.data.replyContent
+        content: this.data.replyContent.trim(),
+        images: this.data.replyImages
       },
       success: (res) => {
         wx.hideLoading();
         if (res.statusCode === 200) {
           wx.showToast({ title: '回复成功', icon: 'success' });
-          this.setData({ replyContent: '' });
+          this.setData({ replyContent: '', replyImages: [] });
           // 刷新详情
           this.fetchQuestionDetail(qid);
+          this.loadQuestions();
         } else {
             wx.showToast({ title: '回复失败', icon: 'none' });
         }

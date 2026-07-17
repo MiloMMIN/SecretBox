@@ -1,46 +1,74 @@
 // pages/post/select_counselor.js
+const app = getApp();
+
+const STAR_TREE_HOLE = {
+  id: 0,
+  name: '星空树洞',
+  desc: '这里没有身份，只有倾听。把秘密告诉星空吧。全体教师均可查看并接力回复。',
+  isTreeHole: true
+};
+
 Page({
   data: {
     counselors: []
   },
 
   onLoad: function (options) {
-    // 模拟辅导员数据
+    this.loadCounselors();
+  },
+
+  onShow() {
+    this.loadCounselors();
+  },
+
+  loadCounselors() {
     this.setData({
-      counselors: [
-        {
-          id: 0,
-          name: "星空树洞",
-          avatar: "/assets/icons/star.png", // 假设会有个星星图标，或者用通用图
-          desc: "这里没有身份，只有倾听。把秘密告诉星空吧。",
-          isTreeHole: true
-        },
-        {
-          id: 1,
-          name: "张老师",
-          avatar: "/assets/icons/user.png", // 暂用图标代替头像
-          desc: "数智学院辅导员，负责大一学生工作。愿做你的倾听者。"
-        },
-        {
-          id: 2,
-          name: "李老师",
-          avatar: "/assets/icons/user.png",
-          desc: "数智学院辅导员，负责心理健康教育。每一个你都独一无二。"
-        },
-        {
-          id: 3,
-          name: "王老师",
-          avatar: "/assets/icons/user.png",
-          desc: "学工办主任。有困难，找组织。"
+      counselors: [STAR_TREE_HOLE]
+    });
+
+    wx.request({
+      url: `${app.globalData.baseUrl}/teachers`,
+      method: 'GET',
+      success: (res) => {
+        if (res.statusCode !== 200 || !Array.isArray(res.data)) {
+          wx.showToast({
+            title: res.data?.error || '教师数据加载失败',
+            icon: 'none'
+          });
+          this.setData({ counselors: [STAR_TREE_HOLE] });
+          return;
         }
-      ]
+
+        const teachers = res.data.map((teacher) => ({
+          id: teacher.id,
+          name: teacher.nickName,
+          desc: teacher.desc || '已认证教师'
+        }));
+
+        this.setData({
+          counselors: [
+            STAR_TREE_HOLE,
+            ...teachers
+          ]
+        });
+      },
+      fail: () => {
+        wx.showToast({
+          title: '教师列表加载失败',
+          icon: 'none'
+        });
+        this.setData({
+          counselors: [STAR_TREE_HOLE]
+        });
+      }
     });
   },
 
   selectCounselor: function(e) {
     const { id, name } = e.currentTarget.dataset;
+
     wx.navigateTo({
-      url: `/pages/post/create?counselorId=${id}&counselorName=${name}`
+      url: `/pages/post/create?counselorId=${id}&counselorName=${encodeURIComponent(name || '')}`
     });
   }
 })

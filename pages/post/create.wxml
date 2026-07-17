@@ -20,7 +20,7 @@
     <view class="option-item">
       <view class="option-label">
         <text>匿名投递</text>
-        <text class="option-desc">开启后，你的名字将对所有人隐藏（辅导员除外）</text>
+        <text class="option-desc">开启后，你的名字将对所有人隐藏</text>
       </view>
       <switch color="#66BB6A" checked="{{isAnonymous}}" bindchange="onAnonymousChange"/>
     </view>
@@ -36,14 +36,6 @@
         <input class="input-field" placeholder="请输入真实姓名" value="{{studentName}}" bindinput="onNameInput" />
       </view>
     </view>
-
-    <view class="option-item">
-      <view class="option-label">
-        <text>公开到广场</text>
-        <text class="option-desc">开启后，问题将显示在首页广场</text>
-      </view>
-      <switch color="#66BB6A" checked="{{isPublic}}" bindchange="onPublicChange"/>
-    </view>
   </view>
 
   <view class="btn-area">
@@ -51,6 +43,6 @@
   </view>
   
   <view class="tips">
-    <text>温馨提示：\n1. 即使匿名，辅导员在后台仍可见您的真实身份，这是为了在紧急情况下（如涉及生命安全）能及时提供帮助。\n2. 请理性发言，文明表达。</text>
+    <text>温馨提示：\n1. 即使匿名，教师在后台仍可见您的真实身份，这是为了在紧急情况下（如涉及生命安全）能及时提供帮助。\n2. 请理性发言，文明表达。</text>
   </view>
 </view>

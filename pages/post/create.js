@@ -1,11 +1,12 @@
 // pages/post/create.js
+const app = getApp();
+
 Page({
   data: {
     counselorId: null,
     counselorName: '',
     content: '',
     isAnonymous: false,
-    isPublic: false,
     studentClass: '',
     studentName: ''
   },
@@ -13,7 +14,7 @@ Page({
   onLoad: function (options) {
     this.setData({
       counselorId: options.counselorId,
-      counselorName: options.counselorName || '辅导员'
+      counselorName: options.counselorName || '教师'
     });
   },
 
@@ -26,12 +27,6 @@ Page({
   onAnonymousChange: function(e) {
     this.setData({
       isAnonymous: e.detail.value
-    });
-  },
-
-  onPublicChange: function(e) {
-    this.setData({
-      isPublic: e.detail.value
     });
   },
 
@@ -67,21 +62,59 @@ Page({
       title: '投递中...',
     });
 
-    // 模拟网络请求
-    setTimeout(() => {
+    const token = wx.getStorageSync('token');
+    if (!token) {
       wx.hideLoading();
       wx.showToast({
-        title: '投递成功',
-        icon: 'success',
-        duration: 2000,
-        success: () => {
+        title: '请先登录',
+        icon: 'none'
+      });
+      return;
+    }
+
+    wx.request({
+      url: `${app.globalData.baseUrl}/questions`,
+      method: 'POST',
+      header: {
+        'Authorization': token
+      },
+      data: {
+        content: this.data.content.trim(),
+        counselorId: this.data.counselorId,
+        isAnonymous: this.data.isAnonymous,
+        isPublic: false,
+        studentClass: this.data.studentClass.trim(),
+        studentName: this.data.studentName.trim()
+      },
+      success: (res) => {
+        wx.hideLoading();
+
+        if (res.statusCode === 200 && res.data.success) {
+          wx.showToast({
+            title: res.data.reviewStatus === 'pending' ? '已提交审核' : '投递成功',
+            icon: 'success'
+          });
+
           setTimeout(() => {
             wx.switchTab({
-              url: '/pages/index/index',
+              url: '/pages/index/index'
             });
-          }, 2000);
+          }, 800);
+          return;
         }
-      });
-    }, 1500);
+
+        wx.showToast({
+          title: res.data?.error || '投递失败',
+          icon: 'none'
+        });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({
+          title: '网络错误，请稍后重试',
+          icon: 'none'
+        });
+      }
+    });
   }
 })

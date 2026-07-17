@@ -30,29 +30,38 @@
     <block wx:for="{{questions}}" wx:key="id">
       <view class="card question-card" bindtap="goToDetail" data-id="{{item.id}}">
         <view class="q-header">
-          <view class="q-tag">公开提问</view>
+          <view class="q-user">
+            <text class="q-user-name">{{item.user && item.user.nickName ? item.user.nickName : '匿名用户'}}</text>
+          </view>
           <view class="q-time">{{item.time}}</view>
         </view>
         <view class="q-content">{{item.content}}</view>
         <view class="q-footer">
-          <view class="q-status {{item.reply ? 'replied' : 'pending'}}">
-            {{item.reply ? '辅导员已回复' : '等待回复'}}
+          <view class="q-status {{item.hasTeacherReply ? 'replied' : 'pending'}}">
+            {{item.hasTeacherReply ? '已回复' : '等待回复'}}
           </view>
           <view class="q-actions">
-            <view class="action-item">⭐ {{item.stars || 0}}</view>
+            <view class="action-item star-action {{item.starred ? 'active' : ''}}" catchtap="toggleStar" data-id="{{item.id}}">⭐ {{item.stars || 0}}</view>
             <view class="action-item">💬 {{item.comments || 0}}</view>
           </view>
         </view>
-        <view wx:if="{{item.reply}}" class="q-reply">
-          <text class="reply-label">回复：</text>
-          <text>{{item.reply}}</text>
+        <view wx:if="{{item.latestReplyPreview}}" class="q-reply">
+          <text class="reply-label">最新回复：</text>
+          <text>{{item.latestReplyPreview}}</text>
         </view>
       </view>
     </block>
     
     <!-- 空状态 -->
-    <view wx:if="{{questions.length === 0}}" class="empty-state">
+    <view wx:if="{{loadingQuestions && questions.length === 0}}" class="empty-state">
+      <text>加载中...</text>
+    </view>
+    <view wx:elif="{{questions.length === 0}}" class="empty-state">
       <text>还没有公开提问哦，快去投递吧~</text>
+    </view>
+    <view wx:if="{{questions.length > 0}}" class="list-status">
+      <text wx:if="{{loadingQuestions}}">加载更多中...</text>
+      <text wx:elif="{{!hasMore}}">已经到底了</text>
     </view>
   </view>
   
@@ -60,12 +69,9 @@
   <view class="login-mask" wx:if="{{showLoginModal}}">
     <view class="login-card">
       <view class="login-title">欢迎来到智心树洞</view>
-      <view class="login-desc">为了提供更好的服务，我们需要获取您的头像和昵称。</view>
-      <button class="avatar-wrapper" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
-        <image class="avatar" src="{{userInfo.avatarUrl || '/assets/icons/user.png'}}"></image>
-      </button> 
-      <input type="nickname" class="nickname-input" placeholder="请输入昵称" bind:change="onNicknameChange"/>
-      <button class="login-btn" bindtap="confirmLogin">授权登录</button>
+      <view class="login-desc">请输入昵称后继续使用。</view>
+      <input type="nickname" class="nickname-input" value="{{userInfo.nickName}}" placeholder="请输入昵称" bindinput="onNicknameChange"/>
+      <button class="login-btn" bindtap="confirmLogin" disabled="{{loginSubmitting}}">{{loginSubmitting ? '处理中...' : '授权登录'}}</button>
     </view>
   </view>
 
@@ -90,7 +96,7 @@
           <view class="q-info">
             <text>{{currentQuestion.time}}</text>
             <view class="q-stats">
-              <text>⭐ {{currentQuestion.stars}}</text>
+              <text class="detail-star {{currentQuestion.starred ? 'active' : ''}}" bindtap="toggleCurrentQuestionStar">⭐ {{currentQuestion.stars}}</text>
             </view>
           </view>
         </view>
@@ -100,11 +106,14 @@
           <block wx:for="{{currentQuestion.replies}}" wx:key="id">
             <view class="reply-item card">
               <view class="reply-user">
-                <image class="reply-avatar" src="{{item.user.avatarUrl || '/assets/icons/user.png'}}"></image>
                 <text class="reply-name">{{item.user.nickname}}</text>
+                <text class="reply-role {{item.user.role === 'teacher' ? 'teacher' : 'student'}}">{{item.user.role === 'teacher' ? '教师' : '学生'}}</text>
                 <text class="reply-time">{{item.time}}</text>
               </view>
               <view class="reply-content">{{item.content}}</view>
+              <view wx:if="{{item.images && item.images.length}}" class="reply-images">
+                <image wx:for="{{item.images}}" wx:for-item="imageUrl" wx:key="*this" class="reply-image" src="{{imageUrl}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{imageUrl}}" data-urls="{{item.images}}"></image>
+              </view>
             </view>
           </block>
           <view wx:if="{{!currentQuestion.replies || currentQuestion.replies.length === 0}}" class="empty-reply">
@@ -114,15 +123,26 @@
       </scroll-view>
 
       <view class="reply-input-area">
-        <input 
-          class="reply-input" 
-          placeholder="写下你的暖心回复..." 
-          value="{{replyContent}}" 
-          bindinput="onReplyInput"
-          confirm-type="send"
-          bindconfirm="submitReply"
-        />
-        <view class="send-btn" bindtap="submitReply">发送</view>
+        <view class="reply-compose">
+          <view wx:if="{{replyImages.length}}" class="reply-preview-list">
+            <view wx:for="{{replyImages}}" wx:key="*this" class="reply-preview-item">
+              <image class="reply-preview-image" src="{{item}}" mode="aspectFill" bindtap="previewReplyImage" data-url="{{item}}" data-urls="{{replyImages}}"></image>
+              <view class="reply-preview-remove" catchtap="removeReplyImage" data-index="{{index}}">×</view>
+            </view>
+          </view>
+          <view class="reply-compose-row">
+            <view class="image-btn" bindtap="chooseReplyImages">图</view>
+            <input 
+              class="reply-input" 
+              placeholder="写下你的暖心回复..." 
+              value="{{replyContent}}" 
+              bindinput="onReplyInput"
+              confirm-type="send"
+              bindconfirm="submitReply"
+            />
+            <view class="send-btn" bindtap="submitReply">发送</view>
+          </view>
+        </view>
       </view>
     </view>
   </page-container>

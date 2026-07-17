@@ -1,7 +1,73 @@
 import time
 import sys
 from sqlalchemy.exc import OperationalError
+from sqlalchemy import inspect, text
 from app import app, db
+
+
+def ensure_schema_updates():
+    inspector = inspect(db.engine)
+
+    tables = set(inspector.get_table_names())
+
+    def ensure_index(table_name, index_name, ddl):
+        existing_indexes = {index['name'] for index in inspector.get_indexes(table_name)}
+        if index_name in existing_indexes:
+            return
+
+        print(f"检测到 {table_name} 缺少索引 {index_name}，正在补齐...")
+        db.session.execute(text(ddl))
+        db.session.commit()
+
+    if 'question' in tables:
+        question_columns = {column['name'] for column in inspector.get_columns('question')}
+        if 'review_status' not in question_columns:
+            print("检测到 question 缺少 review_status，正在补齐...")
+            db.session.execute(text("ALTER TABLE question ADD COLUMN review_status VARCHAR(20) NOT NULL DEFAULT 'approved'"))
+            db.session.commit()
+
+        ensure_index(
+            'question',
+            'idx_question_public_review_created',
+            "CREATE INDEX idx_question_public_review_created ON question (is_public, review_status, created_at)"
+        )
+        ensure_index(
+            'question',
+            'idx_question_counselor_created',
+            "CREATE INDEX idx_question_counselor_created ON question (counselor_id, created_at)"
+        )
+        ensure_index(
+            'question',
+            'idx_question_user_created',
+            "CREATE INDEX idx_question_user_created ON question (user_id, created_at)"
+        )
+
+    if 'reply' in tables:
+        reply_columns = {column['name'] for column in inspector.get_columns('reply')}
+        if 'audit_status' not in reply_columns:
+            print("检测到 reply 缺少 audit_status，正在补齐...")
+            db.session.execute(text("ALTER TABLE reply ADD COLUMN audit_status VARCHAR(20) NOT NULL DEFAULT 'passed'"))
+            db.session.commit()
+        if 'audit_checked_at' not in reply_columns:
+            print("检测到 reply 缺少 audit_checked_at，正在补齐...")
+            db.session.execute(text("ALTER TABLE reply ADD COLUMN audit_checked_at DATETIME NULL"))
+            db.session.commit()
+
+        ensure_index(
+            'reply',
+            'idx_reply_question_created',
+            "CREATE INDEX idx_reply_question_created ON reply (question_id, created_at)"
+        )
+
+    if 'teacher_profile' in tables:
+        teacher_profile_columns = {column['name'] for column in inspector.get_columns('teacher_profile')}
+        if 'last_checked_at' not in teacher_profile_columns:
+            print("检测到 teacher_profile 缺少 last_checked_at，正在补齐...")
+            db.session.execute(text("ALTER TABLE teacher_profile ADD COLUMN last_checked_at DATETIME NULL"))
+            db.session.commit()
+
+    if 'teacher_invite' not in tables:
+        print("检测到 teacher_invite 表不存在，将由 create_all 创建。")
 
 def init_db():
     print("等待数据库连接...")
@@ -28,6 +94,7 @@ def init_db():
                 # 创建表
                 print("正在创建数据库表...")
                 db.create_all()
+                ensure_schema_updates()
                 print("数据库表创建完成！")
                 return True
                 
