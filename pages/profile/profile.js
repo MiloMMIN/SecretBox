@@ -38,11 +38,13 @@ function normalizeUserInfo(userInfo) {
     ? app.hasAdminAccess({ adminLevel })
     : ['admin', 'super_admin'].includes(adminLevel);
   const canManageAdmins = role === 'teacher' || hasAdminAccess;
+  const canUseTeacherFeatures = role === 'teacher' || hasAdminAccess;
+  const isStudentAdmin = role !== 'teacher' && hasAdminAccess;
   let roleLabel = role === 'teacher' ? '教师' : '学生';
   if (adminLevel === 'super_admin') {
     roleLabel = role === 'teacher' ? '最高管理员 / 教师' : '最高管理员';
   } else if (adminLevel === 'admin') {
-    roleLabel = role === 'teacher' ? '管理员 / 教师' : '管理员';
+    roleLabel = role === 'teacher' ? '管理员 / 教师' : '学生管理员';
   }
 
   const roleBadges = [
@@ -59,7 +61,7 @@ function normalizeUserInfo(userInfo) {
     });
   } else if (adminLevel === 'admin') {
     roleBadges.push({
-      text: '管理员',
+      text: role === 'teacher' ? '管理员' : '学生管理员',
       kind: 'admin'
     });
   }
@@ -73,6 +75,8 @@ function normalizeUserInfo(userInfo) {
     wechatId: normalized.wechatId || normalized.wechat_id || '',
     hasAdminAccess,
     canManageAdmins,
+    canUseTeacherFeatures,
+    isStudentAdmin,
     roleLabel,
     roleBadges
   };
@@ -182,7 +186,7 @@ Page({
         return;
       }
 
-      if (userInfo.role === 'teacher') {
+      if (userInfo.canUseTeacherFeatures) {
         this.loadTeacherDashboard(true);
         if (this.data.showTeacherQuestions) {
           this.loadTeacherQuestions('inbox', '树洞信箱');
@@ -633,7 +637,7 @@ Page({
           wx.showToast({ title: '回复成功', icon: 'success' });
           this.setData({ replyContent: '', replyImages: [] });
           this.fetchQuestionDetail(qid);
-          if (this.data.userInfo.role === 'teacher') {
+          if (this.data.userInfo.canUseTeacherFeatures) {
             this.loadTeacherDashboard();
             if (this.data.showTeacherQuestions) {
               this.loadTeacherQuestions('inbox', '树洞信箱');
@@ -704,6 +708,15 @@ Page({
   showAdminManager() {
     wx.navigateTo({
       url: '/pages/teacher/admin_manage/index'
+    });
+  },
+  showStudentAdminManager() {
+    if (!this.data.userInfo.canManageAdmins) {
+      wx.showToast({ title: '当前账号无管理员权限', icon: 'none' });
+      return;
+    }
+    wx.navigateTo({
+      url: '/pages/teacher/student_admin_manage/index'
     });
   },
 
