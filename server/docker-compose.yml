@@ -15,8 +15,5 @@ services:
     ports:
       - "5000:5000"
     environment:
+      # 业务配置全部由 env_file(config.env) 注入；此处仅保留容器内部固定值
       - DATABASE_URL=sqlite:////app/data/treehole.db
-      - WX_APP_ID=${WX_APP_ID}
-      - WX_APP_SECRET=${WX_APP_SECRET}
-      - SECRET_KEY=${SECRET_KEY}
-      - EXTERNAL_URL=${EXTERNAL_URL}
