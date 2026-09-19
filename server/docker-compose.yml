@@ -8,7 +8,9 @@ services:
       - .:/app
     working_dir: /app
     # 启动前先运行初始化脚本，然后再启动 gunicorn
-    command: sh -c "python init_db.py && gunicorn -w 4 -b 0.0.0.0:5000 app:app"
+    # -w 2 足够本业务量；--preload 共享导入内存；max-requests 定期回收 worker 防内存缓慢增长
+    command: sh -c "python init_db.py && gunicorn -w 2 --preload --max-requests 1000 --max-requests-jitter 100 -b 0.0.0.0:5000 app:app"
+    mem_limit: 512m
     ports:
       - "5000:5000"
     environment:
@@ -29,7 +31,9 @@ services:
     volumes:
       - .:/app
     working_dir: /app
-    command: celery -A tasks worker --loglevel=info
+    # 审核任务量小，concurrency 默认等于 CPU 核数会拉起过多子进程；限制为 2 并定期回收
+    command: celery -A tasks worker --loglevel=info --concurrency=2 --max-tasks-per-child=200
+    mem_limit: 384m
     environment:
       - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
       - REDIS_URL=redis://${REDIS_HOST}:${REDIS_PORT}/0
@@ -39,7 +43,16 @@ services:
 
   db:
     image: mysql:8.0
-    command: --default-authentication-plugin=mysql_native_password
+    # 小库场景缩减默认内存：关闭 performance_schema，buffer pool 64M 起步
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --performance_schema=OFF
+      --innodb_buffer_pool_size=64M
+      --innodb_log_buffer_size=8M
+      --max_connections=50
+      --table_open_cache=400
+      --thread_cache_size=10
+    mem_limit: 640m
     env_file:
       - config.env
     environment:
@@ -52,10 +65,12 @@ services:
 
   redis:
     image: redis:6-alpine
+    mem_limit: 64m
 
   adminer:
     image: adminer
     restart: always
+    mem_limit: 128m
     ports:
       - "8087:8080"
     environment:
