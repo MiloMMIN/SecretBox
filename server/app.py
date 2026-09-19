@@ -19,9 +19,13 @@ from urllib.parse import urlparse
 
 class Config:
     # 数据库配置
-    # 优先使用独立环境变量构建连接字符串，以支持特殊字符（如密码中的 @）
+    # 优先级：DATABASE_URL > MYSQL_* 拼接 > 内置 SQLite 默认值
+    database_url = os.getenv('DATABASE_URL')
     db_password = os.getenv('MYSQL_ROOT_PASSWORD')
-    if db_password:
+    if database_url:
+        SQLALCHEMY_DATABASE_URI = database_url
+    elif db_password:
+        # 兼容旧 MySQL 部署：以支持特殊字符（如密码中的 @）
         db_user = 'root' # Docker Compose 默认为 root
         db_host = os.getenv('MYSQL_HOST', 'db')
         db_port = os.getenv('MYSQL_PORT', '3306')
@@ -29,8 +33,9 @@ class Config:
         encoded_password = urllib.parse.quote_plus(db_password)
         SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
     else:
-        # 兼容旧逻辑
-        SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'mysql+pymysql://root:password@db/treehole_db')
+        # 默认使用轻量 SQLite（单文件，无需独立数据库进程）
+        default_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'treehole.db')
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///' + default_db_path.replace(os.sep, '/')
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -337,6 +342,18 @@ def audit_image_content(image_url, openid=''):
         return {'ok': True, 'skipped': True, 'reason': 'wechat_check_failed', 'checked_at': checked_at}
 
 db = SQLAlchemy(app)
+
+# SQLite 多进程并发：WAL 允许读写并行，busy_timeout 避免写锁直接报错
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+    from sqlalchemy import event
+
+    with app.app_context():
+        @event.listens_for(db.engine, 'connect')
+        def _set_sqlite_pragma(dbapi_connection, _connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute('PRAGMA journal_mode=WAL')
+            cursor.execute('PRAGMA busy_timeout=30000')
+            cursor.close()
 
 # 初始化 Celery
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
@@ -1296,7 +1313,7 @@ class Appointment(db.Model):
 #    db.create_all()
 
 
-@celery.task(bind=True, name='tasks.audit_question')
+@celery.task(bind=True, name='tasks.audit_question', ignore_result=True)
 def audit_question(self, question_id):
     """审核问题内容（适用于所有问题，包括私密和公开）"""
     with app.app_context():
@@ -1337,7 +1354,7 @@ def audit_question(self, question_id):
         return {'status': question.audit_status}
 
 
-@celery.task(bind=True, name='tasks.audit_reply')
+@celery.task(bind=True, name='tasks.audit_reply', ignore_result=True)
 def audit_reply(self, reply_id):
     """审核回复内容（包括文字和图片）"""
     with app.app_context():
@@ -1399,7 +1416,7 @@ def audit_reply(self, reply_id):
 
 
 # 保留旧的任务名兼容性
-@celery.task(bind=True, name='tasks.audit_public_question')
+@celery.task(bind=True, name='tasks.audit_public_question', ignore_result=True)
 def audit_public_question(self, question_id):
     """兼容旧任务名，委托给新的 audit_question"""
     return audit_question(self, question_id)
@@ -2663,8 +2680,11 @@ def create_question():
     db.session.add(q)
     db.session.commit()
 
-    # 所有问题都触发异步审核
-    audit_question.delay(q.id)
+    # 所有问题都触发异步审核；broker 不可用时内容保持 pending，不影响发帖
+    try:
+        audit_question.delay(q.id)
+    except Exception as e:
+        app.logger.warning('audit_question dispatch failed: %s', e)
 
     return jsonify({'success': True, 'id': q.id, **serialize_question_review(q)})
 
@@ -2713,8 +2733,11 @@ def create_reply(qid):
 
     db.session.commit()
 
-    # 触发异步审核（包括文字和图片）
-    audit_reply.delay(reply.id)
+    # 触发异步审核（包括文字和图片）；broker 不可用时回复保持 pending
+    try:
+        audit_reply.delay(reply.id)
+    except Exception as e:
+        app.logger.warning('audit_reply dispatch failed: %s', e)
 
     return jsonify({'success': True})
 

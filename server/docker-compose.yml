@@ -14,14 +14,13 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
+      - DATABASE_URL=sqlite:////app/data/treehole.db
       - REDIS_URL=redis://${REDIS_HOST}:${REDIS_PORT}/0
       - WX_APP_ID=${WX_APP_ID}
       - WX_APP_SECRET=${WX_APP_SECRET}
       - SECRET_KEY=${SECRET_KEY}
       - EXTERNAL_URL=${EXTERNAL_URL}
     depends_on:
-      - db
       - redis
 
   worker:
@@ -35,48 +34,11 @@ services:
     command: celery -A tasks worker --loglevel=info --concurrency=2 --max-tasks-per-child=200
     mem_limit: 384m
     environment:
-      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
+      - DATABASE_URL=sqlite:////app/data/treehole.db
       - REDIS_URL=redis://${REDIS_HOST}:${REDIS_PORT}/0
     depends_on:
-      - db
       - redis
-
-  db:
-    image: mysql:8.0
-    # 小库场景缩减默认内存：关闭 performance_schema，buffer pool 64M 起步
-    command: >
-      --default-authentication-plugin=mysql_native_password
-      --performance_schema=OFF
-      --innodb_buffer_pool_size=64M
-      --innodb_log_buffer_size=8M
-      --max_connections=50
-      --table_open_cache=400
-      --thread_cache_size=10
-    mem_limit: 640m
-    env_file:
-      - config.env
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-    volumes:
-      - db_data:/var/lib/mysql
-    ports:
-      - "3377:3306"
 
   redis:
     image: redis:6-alpine
     mem_limit: 64m
-
-  adminer:
-    image: adminer
-    restart: always
-    mem_limit: 128m
-    ports:
-      - "8087:8080"
-    environment:
-      ADMINER_DEFAULT_SERVER: db
-    depends_on:
-      - db
-
-volumes:
-  db_data:

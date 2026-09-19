@@ -6,7 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 智心树洞 (SecretBox) is a WeChat Mini Program for psychological counseling and student-teacher interaction. It consists of:
 - **Frontend**: WeChat Mini Program (WXML, WXSS, JS, JSON)
-- **Backend**: Python Flask + MySQL + Redis + Celery
+- **Backend**: Python Flask + SQLite + Redis + Celery
+
+默认数据库为 SQLite（`server/data/treehole.db`，随目录挂载持久化，WAL 模式）。
+`DATABASE_URL` 可覆盖；若仍需旧 MySQL，用 `server/migrate_mysql_to_sqlite.py` 迁移数据。
 
 ## Development Commands
 
@@ -94,6 +97,13 @@ Critical env vars in `server/config.env`:
 - `WX_APP_ID` / `WX_APP_SECRET`: Required for login and content security check
 - `TEACHER_OPENIDS`: Pre-configured teacher openids
 - `TEACHER_INVITE_CODE`: Teacher upgrade code
+- `SUPER_ADMIN_OPENIDS`: Comma-separated openids granted super admin (only super admin source; wechat_id is self-declared and never grants privileges)
+- `DATABASE_URL`: Optional DB override; defaults to `sqlite:///<server>/data/treehole.db`
+
+### Admin Levels
+- `User.admin_level` stored: `none` / `admin` (granted via admin applications, admin invitations, or `/api/admin/student-admins`)
+- `super_admin` is computed from `SUPER_ADMIN_OPENIDS` only — never stored
+- Student admin = `role='student'` + `admin_level='admin'`: can view/reply private treeholes, moderate square posts, manage other student admins
 
 ### Content Security
 - Async WeChat `msg_sec_check` via Celery task `audit_public_question`
