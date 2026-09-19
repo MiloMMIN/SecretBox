@@ -4,7 +4,7 @@
     <view class="hero-panel">
       <view class="hero-kicker">学生管理员</view>
       <view class="hero-title">学生管理员管理</view>
-      <view class="hero-desc">将学生授权为学生管理员后，TA 也能查看树洞信箱、回复私密投递，并参与广场管理。</view>
+      <view class="hero-desc">将学生授权为学生管理员后，TA 也能查看树洞信箱并回复私密投递。</view>
     </view>
 
     <view class="section-card invite-card">
