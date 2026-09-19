@@ -12,7 +12,13 @@ import io
 from unittest.mock import patch, MagicMock, PropertyMock
 
 # Add server directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SERVER_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'server')
+if SERVER_DIR not in sys.path:
+    sys.path.insert(0, SERVER_DIR)
+
+os.environ.setdefault('DATABASE_URL', 'sqlite://')
+os.environ.setdefault('WX_APP_ID', '')
+os.environ.setdefault('WX_APP_SECRET', '')
 
 
 @pytest.fixture
@@ -163,7 +169,7 @@ class TestImageServing:
             filename = upload_data_result['url'].split('/uploads/')[-1]
 
             # Now try to serve the image
-            serve_response = client.get(f'/uploads/{filename}')
+            serve_response = client.get(f'/api/uploads/{filename}')
             assert serve_response.status_code == 200
             assert serve_response.data == test_file_content
         finally:
@@ -171,7 +177,7 @@ class TestImageServing:
 
     def test_serve_nonexistent_image_returns_404(self, client):
         """Test that serving non-existent image returns 404."""
-        response = client.get('/uploads/nonexistent.png')
+        response = client.get('/api/uploads/nonexistent.png')
         assert response.status_code == 404
 
     def test_serve_uploaded_image_has_cors_headers(self, client, mock_wechat_auth, tmp_path):
@@ -193,7 +199,7 @@ class TestImageServing:
             filename = upload_data_result['url'].split('/uploads/')[-1]
 
             # Serve the image and check CORS headers
-            serve_response = client.get(f'/uploads/{filename}')
+            serve_response = client.get(f'/api/uploads/{filename}')
             assert serve_response.status_code == 200
             assert serve_response.headers.get('Access-Control-Allow-Origin') == '*'
             assert serve_response.headers.get('Access-Control-Allow-Methods') == 'GET, OPTIONS'
@@ -230,8 +236,8 @@ class TestBuildFileUrl:
             from app import build_file_url
             url = build_file_url('test.png')
             # Should use the external URL, not the request host_url
-            assert url.startswith('https://mouow.asia/uploads/')
-            assert url.endswith('/uploads/test.png')
+            assert url.startswith('https://mouow.asia/api/uploads/')
+            assert url.endswith('/api/uploads/test.png')
 
         # Clean up
         del app_instance.config['EXTERNAL_URL']
@@ -242,7 +248,7 @@ class TestBuildFileUrl:
             from app import build_file_url
             url = build_file_url('test.png')
             # Should fall back to request.host_url
-            assert url.startswith('http://localhost:5000/uploads/')
+            assert url.startswith('http://localhost:5000/api/uploads/')
 
     def test_build_file_url_https_external_url(self, app_instance):
         """Test that build_file_url correctly handles HTTPS external URLs."""
@@ -251,7 +257,7 @@ class TestBuildFileUrl:
         with app_instance.test_request_context('/'):
             from app import build_file_url
             url = build_file_url('secure-image.png')
-            assert url.startswith('https://mouow.asia/uploads/')
+            assert url.startswith('https://mouow.asia/api/uploads/')
             assert 'secure-image.png' in url
 
         del app_instance.config['EXTERNAL_URL']
@@ -265,7 +271,7 @@ class TestBuildFileUrl:
             from app import build_file_url
             url = build_file_url('test.png')
             # Should not have double slashes
-            assert url == 'https://mouow.asia/uploads/test.png'
+            assert url == 'https://mouow.asia/api/uploads/test.png'
             assert '//' not in url.replace('https://', '')
 
         del app_instance.config['EXTERNAL_URL']
