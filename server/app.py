@@ -870,8 +870,8 @@ def build_question_summary_map(question_ids, current_user_id=None):
             ).group_by(
                 Reply.question_id
             ).all()
-        except Exception:
-            pass
+        except Exception as e:
+            app.logger.warning('reply_count fallback also failed: %s', e)
     for question_id, reply_count in reply_count_rows:
         summary_map[question_id]['comments'] = reply_count
 
@@ -899,8 +899,8 @@ def build_question_summary_map(question_ids, current_user_id=None):
                 Reply.question_id.asc(),
                 Reply.created_at.desc()
             ).all()
-        except Exception:
-            pass
+        except Exception as e:
+            app.logger.warning('replies fallback query also failed: %s', e)
 
     latest_seen = set()
     latest_teacher_seen = set()
@@ -1478,7 +1478,8 @@ def login():
                 return jsonify({'error': res_data.get('errmsg')}), 400
             openid = res_data['openid']
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            app.logger.error('Login wx code exchange failed: %s', e)
+            return jsonify({'error': '登录失败，请稍后重试'}), 500
 
     # 查找或创建用户
     user = User.query.filter_by(openid=openid).first()
@@ -1648,6 +1649,8 @@ def get_appointment_calendar():
 def create_appointment():
     data = request.json or {}
     user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
     student_name = (data.get('studentName') or '').strip()
     student_class = (data.get('studentClass') or '').strip()
     date_value = (data.get('date') or '').strip()
@@ -1692,7 +1695,7 @@ def create_appointment():
             return jsonify({'error': 'Selected slot has passed'}), 400
 
     appointment = Appointment(
-        user_id=user.id if user else None,
+        user_id=user.id,
         teacher_id=teacher.id,
         student_name=student_name[:64],
         student_class=student_class[:64],
@@ -2193,6 +2196,17 @@ def get_teacher_invite_share_link(invite_id):
         'shareToken': invite.claim_token or ''
     })
 
+
+def apply_teacher_invitation_to_user(invite, user):
+    """将教师邀请应用到用户：升级角色、绑定邀请、创建教师档案"""
+    user.role = 'teacher'
+    invite.claimed_user_id = user.id
+    invite.status = 'claimed'
+    profile = get_or_create_teacher_profile(user)
+    if invite.display_name and not profile.display_name:
+        profile.display_name = invite.display_name
+    if user.nickname and not profile.display_name:
+        profile.display_name = user.nickname
 
 @app.route('/api/teacher/invitations/claim', methods=['POST'])
 def claim_teacher_invitation():
@@ -2716,12 +2730,13 @@ def toggle_star(qid):
     star = Star.query.filter_by(user_id=user.id, question_id=qid).first()
     if star:
         db.session.delete(star)
-        question.stars = max((question.stars or 0) - 1, 0)
         starred = False
     else:
         db.session.add(Star(user_id=user.id, question_id=qid))
-        question.stars = (question.stars or 0) + 1
         starred = True
+
+    # 使用实际计数而非增减，避免并发竞态导致计数不一致
+    question.stars = db.session.query(db.func.count(Star.id)).filter(Star.question_id == qid).scalar()
 
     db.session.commit()
     return jsonify({'success': True, 'starred': starred, 'stars': question.stars})
@@ -2734,7 +2749,11 @@ def delete_teacher_question(qid):
         return error_response
 
     question = Question.query.get_or_404(qid)
-    if not question.is_public and question.counselor_id not in {user.id, 0}:
+    if question.is_public:
+        # 公开帖子仅管理员可删除
+        if not has_admin_access(user):
+            return jsonify({'error': 'Forbidden: only admin can delete public posts'}), 403
+    elif question.counselor_id not in {user.id, 0}:
         return jsonify({'error': 'Forbidden'}), 403
 
     replies = Reply.query.filter_by(question_id=question.id).all()
@@ -2820,17 +2839,24 @@ def get_my_replies():
             user_id=user.id,
             audit_status='passed'
         ).order_by(Reply.created_at.desc()).all()
-    except Exception:
-        # audit_status 字段可能不存在，显示所有回复
+    except Exception as e:
+        app.logger.warning('按 audit_status 过滤回复失败，回退全量查询: %s', e)
         replies = Reply.query.filter_by(
             user_id=user.id
         ).order_by(Reply.created_at.desc()).all()
     
+    # 批量查询关联的 Question，避免 N+1 性能问题
+    question_ids = list({r.question_id for r in replies})
+    questions_map = {}
+    if question_ids:
+        questions = Question.query.filter(Question.id.in_(question_ids)).all()
+        questions_map = {q.id: q for q in questions}
+
     result = []
     seen_qids = set()
     for r in replies:
         if r.question_id not in seen_qids:
-            q = Question.query.get(r.question_id)
+            q = questions_map.get(r.question_id)
             if q:
                 result.append({
                     'id': q.id,
@@ -2839,7 +2865,7 @@ def get_my_replies():
                     'time': r.created_at.strftime('%Y-%m-%d %H:%M')
                 })
                 seen_qids.add(r.question_id)
-                
+
     return jsonify(result)
 
 if __name__ == '__main__':
