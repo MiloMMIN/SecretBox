@@ -2624,7 +2624,7 @@ def get_question_detail(qid):
         'user': get_question_author_payload(q),
         'latestReplyPreview': summary.get('latestReplyPreview'),
         **serialize_question_review(q),
-        'replies': [serialize_reply(reply, include_audit=(user and user.role == 'teacher')) for reply in replies]
+        'replies': [serialize_reply(reply, include_audit=(user and can_use_teacher_features(user))) for reply in replies]
     })
 
 # 发布问题

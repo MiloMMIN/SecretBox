@@ -22,6 +22,7 @@ function normalizeUserInfo(userInfo) {
       wechatId: '',
       hasAdminAccess: false,
       canManageAdmins: false,
+      canManageTeachers: false,
       roleLabel: '未登录',
       roleBadges: [
         {
@@ -38,6 +39,7 @@ function normalizeUserInfo(userInfo) {
     ? app.hasAdminAccess({ adminLevel })
     : ['admin', 'super_admin'].includes(adminLevel);
   const canManageAdmins = role === 'teacher' || hasAdminAccess;
+  const canManageTeachers = role === 'teacher' || adminLevel === 'super_admin';
   const canUseTeacherFeatures = role === 'teacher' || hasAdminAccess;
   const isStudentAdmin = role !== 'teacher' && hasAdminAccess;
   let roleLabel = role === 'teacher' ? '教师' : '学生';
@@ -75,6 +77,7 @@ function normalizeUserInfo(userInfo) {
     wechatId: normalized.wechatId || normalized.wechat_id || '',
     hasAdminAccess,
     canManageAdmins,
+    canManageTeachers,
     canUseTeacherFeatures,
     isStudentAdmin,
     roleLabel,
@@ -692,7 +695,7 @@ Page({
   },
 
   showCounselorManager() {
-    if (!this.data.userInfo.canManageAdmins) {
+    if (!this.data.userInfo.canManageTeachers) {
       wx.showToast({
         title: '当前账号无教师管理权限',
         icon: 'none'
