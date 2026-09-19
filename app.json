@@ -9,6 +9,7 @@
     "pages/teacher/square_manage/index",
     "pages/teacher/appointment_manage/index",
     "pages/teacher/admin_manage/index",
+    "pages/teacher/student_admin_manage/index",
     "pages/teacher/counselor_manage/index"
   ],
   "window": {

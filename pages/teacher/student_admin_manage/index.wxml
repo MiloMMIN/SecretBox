@@ -1,0 +1,49 @@
+<view class="manage-page">
+  <view class="paper-noise"></view>
+  <scroll-view scroll-y class="page-scroll">
+    <view class="hero-panel">
+      <view class="hero-kicker">学生管理员</view>
+      <view class="hero-title">学生管理员管理</view>
+      <view class="hero-desc">将学生授权为学生管理员后，TA 也能查看树洞信箱、回复私密投递，并参与广场管理。</view>
+    </view>
+
+    <view class="section-card invite-card">
+      <view class="section-head">
+        <view>
+          <view class="section-title">授权学生管理员</view>
+          <view class="section-subtitle">填写学生微信号，立即开通管理权限（无需等待申请）。</view>
+        </view>
+      </view>
+
+      <input class="field-input" placeholder="请输入学生微信号" value="{{grantForm.wechatId}}" bindinput="onGrantWechatIdInput" />
+      <textarea class="field-textarea" maxlength="120" placeholder="备注授权用途，例如负责哪个年级的树洞回复" value="{{grantForm.note}}" bindinput="onGrantNoteInput"></textarea>
+      <button class="primary-btn" bindtap="createStudentAdmin" disabled="{{creating}}">{{creating ? '授权中...' : '授权为学生管理员'}}</button>
+    </view>
+
+    <view class="section-card">
+      <view class="section-head">
+        <view>
+          <view class="section-title">当前学生管理员</view>
+          <view class="section-subtitle">移除后该学生立即失去管理权限。</view>
+        </view>
+      </view>
+
+      <view wx:if="{{loading}}" class="empty-state">加载中...</view>
+
+      <block wx:elif="{{studentAdmins.length > 0}}">
+        <view wx:for="{{studentAdmins}}" wx:key="id" class="manage-card">
+          <view class="manage-card-top">
+            <view class="manage-card-title">{{item.nickName}}</view>
+            <view class="status-chip {{item.adminLevel === 'super_admin' ? 'approved' : ''}}">{{item.adminLevel === 'super_admin' ? '最高管理员' : '学生管理员'}}</view>
+          </view>
+          <view class="manage-card-meta">微信号：{{item.wechatId}}</view>
+          <view class="action-row">
+            <button class="secondary-btn" bindtap="removeStudentAdmin" data-id="{{item.id}}" disabled="{{removingId === item.id}}">{{removingId === item.id ? '移除中...' : '移除权限'}}</button>
+          </view>
+        </view>
+      </block>
+
+      <view wx:else class="empty-state">当前暂无学生管理员。</view>
+    </view>
+  </scroll-view>
+</view>

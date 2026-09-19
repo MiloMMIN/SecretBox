@@ -769,7 +769,7 @@ Page({
     wx.request({
       url: `${app.globalData.baseUrl}/appointments`,
       method: 'POST',
-      header: typeof app.getAuthHeader === 'function' ? app.getAuthHeader() : {},
+      header: typeof app.getAuthHeader === 'function' ? app.getAuthHeader() : { Authorization: wx.getStorageSync('token') || '' },
       data: {
         studentName,
         studentClass,

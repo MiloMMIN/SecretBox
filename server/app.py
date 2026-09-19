@@ -158,6 +158,25 @@ def can_manage_admins(user):
     return bool(user and (user.role == 'teacher' or has_admin_access(user)))
 
 
+def can_use_teacher_features(user):
+    """教师或管理员级账号（学生管理员 / 超级管理员）可使用树洞工作台功能（查看、回复私密树洞等）。"""
+    return bool(user and (user.role == 'teacher' or has_admin_access(user)))
+
+
+def is_student_admin(user):
+    """学生管理员：保留学生角色但拥有管理员权限的账号。"""
+    return bool(user and user.role == 'student' and has_admin_access(user))
+
+
+def can_manage_teachers(user):
+    """教师与超级管理员可管理教师档案和教师邀请。"""
+    return bool(user and (user.role == 'teacher' or is_super_admin(user)))
+
+
+def is_official_replier(user):
+    """是否属于官方回复者（教师或管理员级账号），用于统计“是否已被老师回复”。"""
+    return bool(user and (user.role == 'teacher' or has_admin_access(user)))
+
 def is_placeholder_wechat_value(value):
     if not value:
         return True
@@ -370,6 +389,8 @@ def serialize_user(user):
         'avatarUrl': '',
         'role': user.role,
         'adminLevel': get_user_admin_level(user),
+        'canUseTeacherFeatures': can_use_teacher_features(user),
+        'isStudentAdmin': is_student_admin(user),
         'wechatId': getattr(user, 'wechat_id', '') or ''
     }
 
@@ -739,15 +760,20 @@ def remove_uploaded_file_by_url(file_url):
 
 
 def get_visible_user_avatar_url(user):
-    if not user or user.role != 'teacher':
+    if not user:
         return ''
 
-    profile = getattr(user, 'teacher_profile', None)
-    if not profile or not profile.avatar_url:
-        return ''
+    if user.role == 'teacher':
+        profile = getattr(user, 'teacher_profile', None)
+        if not profile or not profile.avatar_url:
+            return ''
+        return ensure_absolute_file_url(profile.avatar_url)
 
-    return ensure_absolute_file_url(profile.avatar_url)
+    if has_admin_access(user):
+        # 学生管理员等非教师管理员展示本人头像
+        return ensure_absolute_file_url(user.avatar_url or '')
 
+    return ''
 
 def get_authenticated_user():
     token = request.headers.get('Authorization')
@@ -795,12 +821,15 @@ def get_teacher_replied_question_ids(question_ids):
 
 
 def get_teacher_replied_question_id_query():
-    """获取教师已回复的问题ID查询，仅包含审核通过的回复"""
+    """获取官方（教师或学生管理员）已回复的问题ID查询，仅包含审核通过的回复"""
     return db.session.query(Reply.question_id).join(
         User, Reply.user_id == User.id
     ).filter(
         Reply.audit_status == 'passed',
-        User.role == 'teacher'
+        db.or_(
+            User.role == 'teacher',
+            User.admin_level.in_(['admin', 'super_admin'])
+        )
     ).distinct()
 
 
@@ -841,8 +870,8 @@ def build_question_summary_map(question_ids, current_user_id=None):
             ).group_by(
                 Reply.question_id
             ).all()
-        except Exception:
-            pass
+        except Exception as e:
+            app.logger.warning('reply_count fallback also failed: %s', e)
     for question_id, reply_count in reply_count_rows:
         summary_map[question_id]['comments'] = reply_count
 
@@ -870,8 +899,8 @@ def build_question_summary_map(question_ids, current_user_id=None):
                 Reply.question_id.asc(),
                 Reply.created_at.desc()
             ).all()
-        except Exception:
-            pass
+        except Exception as e:
+            app.logger.warning('replies fallback query also failed: %s', e)
 
     latest_seen = set()
     latest_teacher_seen = set()
@@ -884,7 +913,7 @@ def build_question_summary_map(question_ids, current_user_id=None):
             summary['latestReplyPreview'] = build_reply_preview(reply)
             latest_seen.add(reply.question_id)
 
-        if reply.user and reply.user.role == 'teacher' and reply.question_id not in latest_teacher_seen:
+        if reply.user and is_official_replier(reply.user) and reply.question_id not in latest_teacher_seen:
             summary['teacherReply'] = reply.content
             summary['hasTeacherReply'] = True
             latest_teacher_seen.add(reply.question_id)
@@ -922,17 +951,24 @@ def serialize_reply(reply, include_audit=False):
 
 
 def get_latest_teacher_reply(question_id):
+    """获取最近一条官方回复（教师或学生管理员），优先返回审核通过的"""
     try:
         return Reply.query.join(User, Reply.user_id == User.id).filter(
             Reply.question_id == question_id,
             Reply.audit_status == 'passed',
-            User.role == 'teacher'
+            db.or_(
+                User.role == 'teacher',
+                User.admin_level.in_(['admin', 'super_admin'])
+            )
         ).order_by(Reply.created_at.desc()).first()
     except Exception:
         # audit_status 字段可能不存在
         return Reply.query.join(User, Reply.user_id == User.id).filter(
             Reply.question_id == question_id,
-            User.role == 'teacher'
+            db.or_(
+                User.role == 'teacher',
+                User.admin_level.in_(['admin', 'super_admin'])
+            )
         ).order_by(Reply.created_at.desc()).first()
 
 
@@ -968,7 +1004,7 @@ def can_view_question(user, question):
     if question.user_id == user.id:
         return True
 
-    if user.role != 'teacher':
+    if user.role != 'teacher' and not has_admin_access(user):
         return False
 
     if question.is_public:
@@ -1083,16 +1119,6 @@ def ensure_teacher_manager_user():
     if not can_manage_teachers(user):
         return None, (jsonify({'error': 'Forbidden'}), 403)
     return user, None
-
-
-def ensure_admin_manager_user():
-    user = get_authenticated_user()
-    if not user:
-        return None, (jsonify({'error': 'Unauthorized'}), 401)
-    if not can_manage_admins(user):
-        return None, (jsonify({'error': 'Forbidden'}), 403)
-    return user, None
-
 
 def get_teacher_visible_questions(user):
     return build_teacher_visible_question_query(user, eager=True).order_by(Question.created_at.desc()).all()
@@ -1452,7 +1478,8 @@ def login():
                 return jsonify({'error': res_data.get('errmsg')}), 400
             openid = res_data['openid']
         except Exception as e:
-            return jsonify({'error': str(e)}), 500
+            app.logger.error('Login wx code exchange failed: %s', e)
+            return jsonify({'error': '登录失败，请稍后重试'}), 500
 
     # 查找或创建用户
     user = User.query.filter_by(openid=openid).first()
@@ -1622,6 +1649,8 @@ def get_appointment_calendar():
 def create_appointment():
     data = request.json or {}
     user = get_authenticated_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
     student_name = (data.get('studentName') or '').strip()
     student_class = (data.get('studentClass') or '').strip()
     date_value = (data.get('date') or '').strip()
@@ -1666,7 +1695,7 @@ def create_appointment():
             return jsonify({'error': 'Selected slot has passed'}), 400
 
     appointment = Appointment(
-        user_id=user.id if user else None,
+        user_id=user.id,
         teacher_id=teacher.id,
         student_name=student_name[:64],
         student_class=student_class[:64],
@@ -1995,6 +2024,84 @@ def create_admin_invitation():
     return jsonify({'success': True, 'invitation': serialize_admin_invitation(invitation)})
 
 
+def serialize_student_admin(user):
+    return {
+        'id': user.id,
+        'nickName': user.nickname or '微信用户',
+        'wechatId': getattr(user, 'wechat_id', '') or '',
+        'adminLevel': get_user_admin_level(user),
+        'role': user.role
+    }
+
+
+@app.route('/api/admin/student-admins', methods=['GET'])
+def list_student_admins():
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    admins = User.query.filter(
+        User.role == 'student',
+        User.admin_level.in_(['admin', 'super_admin'])
+    ).order_by(User.created_at.asc(), User.id.asc()).all()
+
+    return jsonify({
+        'items': [serialize_student_admin(item) for item in admins]
+    })
+
+
+@app.route('/api/admin/student-admins', methods=['POST'])
+def create_student_admin():
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    data = request.json or {}
+    wechat_id = (data.get('wechatId') or '').strip()
+    note = (data.get('note') or '').strip() or '由管理员授权为学生管理员'
+
+    if not wechat_id:
+        return jsonify({'error': '请填写目标学生微信号'}), 400
+
+    target = User.query.filter(
+        func.lower(User.wechat_id) == normalize_wechat_id(wechat_id)
+    ).first()
+    if not target:
+        return jsonify({'error': '未找到该微信号对应的用户，请确认其已登录过小程序'}), 404
+    if target.role != 'student':
+        return jsonify({'error': '仅可为学生账号开通学生管理员权限'}), 400
+
+    target.admin_level = 'admin'
+    application = ensure_admin_application_record(target, target.wechat_id, note[:255])
+    application.status = 'approved'
+    application.review_note = '已由管理员直接授权为学生管理员'
+    application.reviewed_by_user_id = user.id
+    application.reviewed_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'success': True, 'studentAdmin': serialize_student_admin(target)})
+
+
+@app.route('/api/admin/student-admins/<int:user_id>', methods=['DELETE'])
+def remove_student_admin(user_id):
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    target = User.query.get(user_id)
+    if not target or target.role != 'student':
+        return jsonify({'error': '未找到该学生账号'}), 404
+    if not has_admin_access(target):
+        return jsonify({'error': '目标账号当前不是学生管理员'}), 400
+
+    if is_super_admin(target):
+        return jsonify({'error': '无法移除最高管理员权限'}), 400
+
+    target.admin_level = 'none'
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 @app.route('/api/teacher/profiles', methods=['GET'])
 def get_teacher_profiles():
     user, error_response = ensure_teacher_manager_user()
@@ -2089,6 +2196,17 @@ def get_teacher_invite_share_link(invite_id):
         'shareToken': invite.claim_token or ''
     })
 
+
+def apply_teacher_invitation_to_user(invite, user):
+    """将教师邀请应用到用户：升级角色、绑定邀请、创建教师档案"""
+    user.role = 'teacher'
+    invite.claimed_user_id = user.id
+    invite.status = 'claimed'
+    profile = get_or_create_teacher_profile(user)
+    if invite.display_name and not profile.display_name:
+        profile.display_name = invite.display_name
+    if user.nickname and not profile.display_name:
+        profile.display_name = user.nickname
 
 @app.route('/api/teacher/invitations/claim', methods=['POST'])
 def claim_teacher_invitation():
@@ -2467,7 +2585,7 @@ def get_question_detail(qid):
         Reply.question_id == qid
     )
 
-    if user and user.role == 'teacher':
+    if user and can_use_teacher_features(user):
         # 教师可以看到所有回复（包括待审核的）
         replies = replies_query.order_by(Reply.created_at.asc()).all()
     elif user:
@@ -2506,7 +2624,7 @@ def get_question_detail(qid):
         'user': get_question_author_payload(q),
         'latestReplyPreview': summary.get('latestReplyPreview'),
         **serialize_question_review(q),
-        'replies': [serialize_reply(reply, include_audit=(user and user.role == 'teacher')) for reply in replies]
+        'replies': [serialize_reply(reply, include_audit=(user and can_use_teacher_features(user))) for reply in replies]
     })
 
 # 发布问题
@@ -2612,12 +2730,13 @@ def toggle_star(qid):
     star = Star.query.filter_by(user_id=user.id, question_id=qid).first()
     if star:
         db.session.delete(star)
-        question.stars = max((question.stars or 0) - 1, 0)
         starred = False
     else:
         db.session.add(Star(user_id=user.id, question_id=qid))
-        question.stars = (question.stars or 0) + 1
         starred = True
+
+    # 使用实际计数而非增减，避免并发竞态导致计数不一致
+    question.stars = db.session.query(db.func.count(Star.id)).filter(Star.question_id == qid).scalar()
 
     db.session.commit()
     return jsonify({'success': True, 'starred': starred, 'stars': question.stars})
@@ -2630,7 +2749,11 @@ def delete_teacher_question(qid):
         return error_response
 
     question = Question.query.get_or_404(qid)
-    if not question.is_public and question.counselor_id not in {user.id, 0}:
+    if question.is_public:
+        # 公开帖子仅管理员可删除
+        if not has_admin_access(user):
+            return jsonify({'error': 'Forbidden: only admin can delete public posts'}), 403
+    elif question.counselor_id not in {user.id, 0}:
         return jsonify({'error': 'Forbidden'}), 403
 
     replies = Reply.query.filter_by(question_id=question.id).all()
@@ -2716,17 +2839,24 @@ def get_my_replies():
             user_id=user.id,
             audit_status='passed'
         ).order_by(Reply.created_at.desc()).all()
-    except Exception:
-        # audit_status 字段可能不存在，显示所有回复
+    except Exception as e:
+        app.logger.warning('按 audit_status 过滤回复失败，回退全量查询: %s', e)
         replies = Reply.query.filter_by(
             user_id=user.id
         ).order_by(Reply.created_at.desc()).all()
     
+    # 批量查询关联的 Question，避免 N+1 性能问题
+    question_ids = list({r.question_id for r in replies})
+    questions_map = {}
+    if question_ids:
+        questions = Question.query.filter(Question.id.in_(question_ids)).all()
+        questions_map = {q.id: q for q in questions}
+
     result = []
     seen_qids = set()
     for r in replies:
         if r.question_id not in seen_qids:
-            q = Question.query.get(r.question_id)
+            q = questions_map.get(r.question_id)
             if q:
                 result.append({
                     'id': q.id,
@@ -2735,7 +2865,7 @@ def get_my_replies():
                     'time': r.created_at.strftime('%Y-%m-%d %H:%M')
                 })
                 seen_qids.add(r.question_id)
-                
+
     return jsonify(result)
 
 if __name__ == '__main__':
