@@ -62,9 +62,6 @@ class Config:
     SUPER_ADMIN_OPENIDS = [
         openid.strip() for openid in os.getenv('SUPER_ADMIN_OPENIDS', '').split(',') if openid.strip()
     ]
-    SUPER_ADMIN_WECHAT_IDS = [
-        wechat_id.strip() for wechat_id in os.getenv('SUPER_ADMIN_WECHAT_IDS', '').split(',') if wechat_id.strip()
-    ]
     DINGTALK_WEBHOOK_URL = os.getenv('DINGTALK_WEBHOOK_URL', '').strip()
     DINGTALK_WEBHOOK_SECRET = os.getenv('DINGTALK_WEBHOOK_SECRET', '').strip()
 
@@ -80,9 +77,6 @@ WX_APP_SECRET = app.config.get('WX_APP_SECRET')
 TEACHER_OPENIDS = set(app.config.get('TEACHER_OPENIDS', []))
 TEACHER_INVITE_CODE = app.config.get('TEACHER_INVITE_CODE', '')
 SUPER_ADMIN_OPENIDS = set(app.config.get('SUPER_ADMIN_OPENIDS', []))
-SUPER_ADMIN_WECHAT_IDS = {
-    item.strip().lower() for item in app.config.get('SUPER_ADMIN_WECHAT_IDS', []) if item.strip()
-}
 WECHAT_ACCESS_TOKEN_CACHE = {
     'token': None,
     'expires_at': None
@@ -136,10 +130,6 @@ def get_user_admin_level(user):
         return 'none'
 
     if user.openid in SUPER_ADMIN_OPENIDS:
-        return 'super_admin'
-
-    normalized_wechat_id = normalize_wechat_id(getattr(user, 'wechat_id', ''))
-    if normalized_wechat_id and normalized_wechat_id in SUPER_ADMIN_WECHAT_IDS:
         return 'super_admin'
 
     stored_level = getattr(user, 'admin_level', 'none') or 'none'
@@ -572,6 +562,15 @@ def serialize_appointment(appointment, viewer=None):
         'isAssignedToCurrentUser': bool(viewer and appointment.teacher_id == viewer.id),
         'canCancel': can_cancel_appointment(viewer, appointment) if viewer else False
     }
+
+
+def serialize_calendar_appointment(appointment):
+    item = serialize_appointment(appointment)
+    item['studentName'] = ''
+    item['studentClass'] = ''
+    item['creatorId'] = None
+    item['creatorName'] = ''
+    return item
 
 
 def serialize_admin_application(application):
@@ -1641,7 +1640,7 @@ def get_appointment_calendar():
     return jsonify({
         'month': month_date.strftime('%Y-%m'),
         'monthLabel': f"{month_date.year} 年 {month_date.month:02d} 月",
-        'appointments': [serialize_appointment(item) for item in appointments]
+        'appointments': [serialize_calendar_appointment(item) for item in appointments]
     })
 
 
