@@ -1,44 +1,22 @@
 version: '3'
 services:
   web:
-    build: . 
-    env_file:
-      - config.env
-    volumes:
-      - .:/app
-    working_dir: /app
-    # 启动前先运行初始化脚本，然后再启动 gunicorn
-    # -w 2 足够本业务量；--preload 共享导入内存；max-requests 定期回收 worker 防内存缓慢增长
-    command: sh -c "python init_db.py && gunicorn -w 2 --preload --max-requests 1000 --max-requests-jitter 100 -b 0.0.0.0:5000 app:app"
-    mem_limit: 512m
-    ports:
-      - "5000:5000"
-    environment:
-      - DATABASE_URL=sqlite:////app/data/treehole.db
-      - REDIS_URL=redis://${REDIS_HOST}:${REDIS_PORT}/0
-      - WX_APP_ID=${WX_APP_ID}
-      - WX_APP_SECRET=${WX_APP_SECRET}
-      - SECRET_KEY=${SECRET_KEY}
-      - EXTERNAL_URL=${EXTERNAL_URL}
-    depends_on:
-      - redis
-
-  worker:
     build: .
     env_file:
       - config.env
     volumes:
       - .:/app
     working_dir: /app
-    # 审核任务量小，concurrency 默认等于 CPU 核数会拉起过多子进程；限制为 2 并定期回收
-    command: celery -A tasks worker --loglevel=info --concurrency=2 --max-tasks-per-child=200
+    # 启动前先运行初始化脚本（建表 + 补偿审核），然后启动 gunicorn
+    # 单进程多线程足够本业务量；内容审核在 daemon 线程内异步执行，不占请求线程
+    # max-requests 定期回收 worker 防内存缓慢增长
+    command: sh -c "python init_db.py && gunicorn -w 1 -k gthread --threads 6 --max-requests 1000 --max-requests-jitter 100 -b 0.0.0.0:5000 app:app"
     mem_limit: 384m
+    ports:
+      - "5000:5000"
     environment:
       - DATABASE_URL=sqlite:////app/data/treehole.db
-      - REDIS_URL=redis://${REDIS_HOST}:${REDIS_PORT}/0
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:6-alpine
-    mem_limit: 64m
+      - WX_APP_ID=${WX_APP_ID}
+      - WX_APP_SECRET=${WX_APP_SECRET}
+      - SECRET_KEY=${SECRET_KEY}
+      - EXTERNAL_URL=${EXTERNAL_URL}

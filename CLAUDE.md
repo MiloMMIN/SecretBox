@@ -6,10 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 智心树洞 (SecretBox) is a WeChat Mini Program for psychological counseling and student-teacher interaction. It consists of:
 - **Frontend**: WeChat Mini Program (WXML, WXSS, JS, JSON)
-- **Backend**: Python Flask + SQLite + Redis + Celery
+- **Backend**: Python Flask + SQLite（单容器，无独立数据库/队列进程）
 
 默认数据库为 SQLite（`server/data/treehole.db`，随目录挂载持久化，WAL 模式）。
 `DATABASE_URL` 可覆盖；若仍需旧 MySQL，用 `server/migrate_mysql_to_sqlite.py` 迁移数据。
+微信内容安全审核在 web 进程内 daemon 线程异步执行（无 Celery/Redis 依赖）；
+进程重启后在途审核由 `init_db.py` 的补偿扫描兜底。
 
 ## Development Commands
 
@@ -27,7 +29,6 @@ docker-compose up -d --build
 
 # View logs
 docker-compose logs -f web
-docker-compose logs -f worker
 
 # Stop services
 docker-compose down
@@ -65,7 +66,7 @@ Key tables defined in `server/app.py`:
 
 ### Review/Moderation System
 - Public questions require manual review: `review_status` = pending/approved/rejected
-- WeChat content security check runs async via Celery: `audit_status` = pending/passed/rejected
+- WeChat content security check runs async via daemon thread (`dispatch_audit`): `audit_status` = pending/passed/rejected
 - `Question` has dual status fields: `review_status` (manual) and `audit_status` (auto)
 - Teachers review via `/api/teacher/questions?reviewStatus=pending`
 
@@ -106,6 +107,6 @@ Critical env vars in `server/config.env`:
 - Student admin = `role='student'` + `admin_level='admin'`: can view/reply private treeholes, moderate square posts, manage other student admins
 
 ### Content Security
-- Async WeChat `msg_sec_check` via Celery task `audit_public_question`
+- Async WeChat `msg_sec_check` via in-process thread `audit_question` (with retry + startup rescan)
 - Falls back to "pass" if WeChat not configured or check fails
 - Review queue at: 广场管理 -> 待审核

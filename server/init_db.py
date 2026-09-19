@@ -152,6 +152,30 @@ def ensure_schema_updates():
     if 'admin_invitation' not in tables:
         print("检测到 admin_invitation 表不存在，将由 create_all 创建。")
 
+def requeue_stale_audits(limit=100):
+    """启动补偿：重跑卡在 pending/failed 的审核记录。
+    审核在 web 进程内 daemon 线程执行，进程重启后在途任务会丢失，
+    这里在启动时单发补跑（_attempt=3 表示不再重试，失败直接标 failed）。"""
+    from app import Question, Reply, audit_question, audit_reply
+
+    pending_q = Question.query.filter(Question.audit_status.in_(['pending', 'failed'])).limit(limit).all()
+    pending_r = Reply.query.filter(Reply.audit_status.in_(['pending', 'failed'])).limit(limit).all()
+    if not pending_q and not pending_r:
+        return
+
+    print(f"检测到 {len(pending_q)} 个问题、{len(pending_r)} 条回复未完成审核，正在补跑...")
+    for q in pending_q:
+        try:
+            audit_question(q.id, _attempt=3)
+        except Exception as e:
+            print(f"补偿审核 question {q.id} 失败: {e}")
+    for r in pending_r:
+        try:
+            audit_reply(r.id, _attempt=3)
+        except Exception as e:
+            print(f"补偿审核 reply {r.id} 失败: {e}")
+
+
 def init_db():
     print("等待数据库连接...")
     max_retries = 30
@@ -179,6 +203,7 @@ def init_db():
                 db.create_all()
                 ensure_schema_updates()
                 print("数据库表创建完成！")
+                requeue_stale_audits()
                 return True
                 
             except OperationalError as e:

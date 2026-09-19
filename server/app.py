@@ -1,8 +1,9 @@
 from flask import Flask, jsonify, request, Response, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from celery import Celery
 import os
 import requests
+import threading
+import time
 import urllib.parse
 import csv
 import io
@@ -42,11 +43,6 @@ class Config:
         'pool_pre_ping': True,
         'pool_recycle': 1800,
     }
-
-    # Redis 配置
-    # 优先读取环境变量 REDIS_URL，否则使用默认值
-    CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
-    CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 
     # 微信小程序配置
     WX_APP_ID = os.getenv('WX_APP_ID')
@@ -355,9 +351,30 @@ if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
             cursor.execute('PRAGMA busy_timeout=30000')
             cursor.close()
 
-# 初始化 Celery
-celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
-celery.conf.update(app.config)
+# --- 异步内容审核：进程内 daemon 线程（替代 Celery，省去 worker/redis 容器）---
+class _AuditRetryable(Exception):
+    """审核遇到可重试错误（如微信 API 暂时不可用）"""
+
+
+def _audit_worker(func, args):
+    """daemon 线程内执行审核：首次 + 最多 3 次重试，递增退避（与原 celery 语义一致）"""
+    for attempt in range(4):
+        try:
+            func(*args, _attempt=attempt)
+            return
+        except _AuditRetryable:
+            time.sleep(min(30 * (attempt + 1), 180))
+        except Exception as exc:
+            app.logger.warning('audit worker %s crashed: %s', getattr(func, '__name__', func), exc)
+            return
+
+
+def dispatch_audit(func, *args):
+    """在 daemon 线程中异步执行审核任务；进程重启后由 init_db 补偿扫描兜底"""
+    try:
+        threading.Thread(target=_audit_worker, args=(func, args), daemon=True).start()
+    except Exception as e:
+        app.logger.warning('audit dispatch failed: %s', e)
 
 
 def resolve_user_role(openid, current_role=None):
@@ -1313,33 +1330,33 @@ class Appointment(db.Model):
 #    db.create_all()
 
 
-@celery.task(bind=True, name='tasks.audit_question', ignore_result=True)
-def audit_question(self, question_id):
+def audit_question(question_id, _attempt=0):
     """审核问题内容（适用于所有问题，包括私密和公开）"""
     with app.app_context():
         question = Question.query.options(joinedload(Question.user)).filter_by(id=question_id).first()
         if not question:
-            return {'status': 'skipped'}
+            return
 
         if question.audit_status == 'passed':
-            return {'status': 'passed'}
+            return
 
         if not question.content or not is_wechat_configured():
             question.audit_status = 'passed'
             question.audit_checked_at = datetime.utcnow()
             db.session.commit()
-            return {'status': 'passed'}
+            return
 
         try:
             audit_result = run_wechat_text_security_check(question.content, question.user.openid if question.user else '')
         except Exception as exc:
-            if self.request.retries >= 3:
+            if _attempt >= 3:
                 question.audit_status = 'failed'
                 question.audit_checked_at = datetime.utcnow()
                 db.session.commit()
-                raise
+                app.logger.warning('audit_question %s failed after retries: %s', question_id, exc)
+                return
 
-            raise self.retry(exc=exc, countdown=min(30 * (self.request.retries + 1), 180))
+            raise _AuditRetryable(str(exc))
 
         question.audit_checked_at = audit_result.get('checked_at') or datetime.utcnow()
         if audit_result.get('ok'):
@@ -1351,11 +1368,9 @@ def audit_question(self, question_id):
                 question.review_status = 'rejected'
 
         db.session.commit()
-        return {'status': question.audit_status}
 
 
-@celery.task(bind=True, name='tasks.audit_reply', ignore_result=True)
-def audit_reply(self, reply_id):
+def audit_reply(reply_id, _attempt=0):
     """审核回复内容（包括文字和图片）"""
     with app.app_context():
         reply = Reply.query.options(
@@ -1363,10 +1378,10 @@ def audit_reply(self, reply_id):
             joinedload(Reply.images)
         ).filter_by(id=reply_id).first()
         if not reply:
-            return {'status': 'skipped'}
+            return
 
         if reply.audit_status == 'passed':
-            return {'status': 'passed'}
+            return
 
         openid = reply.user.openid if reply.user else ''
         checked_at = datetime.utcnow()
@@ -1380,14 +1395,15 @@ def audit_reply(self, reply_id):
                     reply.audit_status = 'rejected'
                     reply.audit_checked_at = checked_at
                     db.session.commit()
-                    return {'status': 'rejected', 'reason': 'text_content_risky'}
+                    return
             except Exception as exc:
-                if self.request.retries >= 3:
+                if _attempt >= 3:
                     reply.audit_status = 'failed'
                     reply.audit_checked_at = checked_at
                     db.session.commit()
-                    raise
-                raise self.retry(exc=exc, countdown=min(30 * (self.request.retries + 1), 180))
+                    app.logger.warning('audit_reply %s failed after retries: %s', reply_id, exc)
+                    return
+                raise _AuditRetryable(str(exc))
 
         # 2. 审核图片内容
         for image in reply.images:
@@ -1399,27 +1415,25 @@ def audit_reply(self, reply_id):
                         reply.audit_status = 'rejected'
                         reply.audit_checked_at = checked_at
                         db.session.commit()
-                        return {'status': 'rejected', 'reason': 'image_content_risky'}
+                        return
                 except Exception as exc:
-                    if self.request.retries >= 3:
+                    if _attempt >= 3:
                         reply.audit_status = 'failed'
                         reply.audit_checked_at = checked_at
                         db.session.commit()
-                        raise
-                    raise self.retry(exc=exc, countdown=min(30 * (self.request.retries + 1), 180))
+                        app.logger.warning('audit_reply %s failed after retries: %s', reply_id, exc)
+                        return
+                    raise _AuditRetryable(str(exc))
 
         # 全部通过
         reply.audit_status = 'passed'
         reply.audit_checked_at = checked_at
         db.session.commit()
-        return {'status': 'passed'}
 
 
-# 保留旧的任务名兼容性
-@celery.task(bind=True, name='tasks.audit_public_question', ignore_result=True)
-def audit_public_question(self, question_id):
-    """兼容旧任务名，委托给新的 audit_question"""
-    return audit_question(self, question_id)
+def audit_public_question(question_id, _attempt=0):
+    """兼容旧入口，委托给 audit_question"""
+    return audit_question(question_id, _attempt=_attempt)
 
 
 # --- API ---
@@ -2680,11 +2694,8 @@ def create_question():
     db.session.add(q)
     db.session.commit()
 
-    # 所有问题都触发异步审核；broker 不可用时内容保持 pending，不影响发帖
-    try:
-        audit_question.delay(q.id)
-    except Exception as e:
-        app.logger.warning('audit_question dispatch failed: %s', e)
+    # 所有问题都触发异步审核；dispatch 失败时内容保持 pending，不影响发帖
+    dispatch_audit(audit_question, q.id)
 
     return jsonify({'success': True, 'id': q.id, **serialize_question_review(q)})
 
@@ -2733,11 +2744,8 @@ def create_reply(qid):
 
     db.session.commit()
 
-    # 触发异步审核（包括文字和图片）；broker 不可用时回复保持 pending
-    try:
-        audit_reply.delay(reply.id)
-    except Exception as e:
-        app.logger.warning('audit_reply dispatch failed: %s', e)
+    # 触发异步审核（包括文字和图片）；dispatch 失败时回复保持 pending
+    dispatch_audit(audit_reply, reply.id)
 
     return jsonify({'success': True})
 
