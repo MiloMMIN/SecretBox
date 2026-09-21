@@ -2100,6 +2100,8 @@ def create_student_admin():
         return jsonify({'error': '未找到该微信号对应的用户，请确认其已登录过小程序'}), 404
     if target.role != 'student':
         return jsonify({'error': '仅可为学生账号开通学生管理员权限'}), 400
+    if has_admin_access(target):
+        return jsonify({'error': '该学生已拥有管理员权限'}), 409
 
     target.admin_level = 'admin'
     application = ensure_admin_application_record(target, target.wechat_id, note[:255])
@@ -2126,6 +2128,90 @@ def remove_student_admin(user_id):
 
     if is_super_admin(target):
         return jsonify({'error': '无法移除最高管理员权限'}), 400
+
+    target.admin_level = 'none'
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+def query_admin_members(role=None):
+    conditions = [User.admin_level.in_(['admin', 'super_admin'])]
+    if SUPER_ADMIN_OPENIDS:
+        conditions.append(User.openid.in_(SUPER_ADMIN_OPENIDS))
+    query = User.query.filter(or_(*conditions))
+    if role:
+        query = query.filter(User.role == role)
+    return query.order_by(User.created_at.asc(), User.id.asc()).all()
+
+
+def serialize_admin_member(user):
+    return {
+        'id': user.id,
+        'nickName': user.nickname or '微信用户',
+        'wechatId': getattr(user, 'wechat_id', '') or '',
+        'role': user.role or 'student',
+        'adminLevel': get_user_admin_level(user),
+        'createdAt': user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else ''
+    }
+
+
+@app.route('/api/admin/admins', methods=['GET'])
+def list_admin_members():
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+
+    members = [item for item in query_admin_members() if has_admin_access(item)]
+    return jsonify({'items': [serialize_admin_member(item) for item in members]})
+
+
+@app.route('/api/admin/admins', methods=['POST'])
+def grant_admin_member():
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+    if not is_super_admin(user):
+        return jsonify({'error': '只有最高管理员可以直接授权管理员'}), 403
+
+    data = request.json or {}
+    wechat_id = (data.get('wechatId') or '').strip()
+    note = (data.get('note') or '').strip() or '由最高管理员直接授权'
+
+    if not wechat_id:
+        return jsonify({'error': '请填写目标微信号'}), 400
+
+    target = User.query.filter(
+        func.lower(User.wechat_id) == normalize_wechat_id(wechat_id)
+    ).first()
+    if not target:
+        return jsonify({'error': '未找到该微信号对应的用户，请确认其已登录过小程序'}), 404
+    if has_admin_access(target):
+        return jsonify({'error': '该账号已拥有管理员权限'}), 409
+
+    target.admin_level = 'admin'
+    application = ensure_admin_application_record(target, target.wechat_id, note[:255])
+    application.status = 'approved'
+    application.review_note = '已由最高管理员直接授权'
+    application.reviewed_by_user_id = user.id
+    application.reviewed_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'success': True, 'admin': serialize_admin_member(target)})
+
+
+@app.route('/api/admin/admins/<int:user_id>', methods=['DELETE'])
+def revoke_admin_member(user_id):
+    user, error_response = ensure_admin_manager_user()
+    if error_response:
+        return error_response
+    if not is_super_admin(user):
+        return jsonify({'error': '只有最高管理员可以移除管理员'}), 403
+
+    target = User.query.get(user_id)
+    if not target or not has_admin_access(target):
+        return jsonify({'error': '未找到该管理员账号'}), 404
+    if is_super_admin(target):
+        return jsonify({'error': '最高管理员由系统配置，不可移除'}), 400
 
     target.admin_level = 'none'
     db.session.commit()

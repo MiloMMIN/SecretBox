@@ -37,7 +37,7 @@
             <view class="status-chip {{item.adminLevel === 'super_admin' ? 'approved' : ''}}">{{item.adminLevel === 'super_admin' ? '最高管理员' : '学生管理员'}}</view>
           </view>
           <view class="manage-card-meta">微信号：{{item.wechatId}}</view>
-          <view class="action-row">
+          <view class="action-row" wx:if="{{item.adminLevel !== 'super_admin'}}">
             <button class="secondary-btn" bindtap="removeStudentAdmin" data-id="{{item.id}}" disabled="{{removingId === item.id}}">{{removingId === item.id ? '移除中...' : '移除权限'}}</button>
           </view>
         </view>

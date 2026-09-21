@@ -23,13 +23,27 @@
     <view class="tab-row">
       <view class="tab-pill {{currentTab === 'applications' ? 'active' : ''}}" bindtap="switchTab" data-tab="applications">申请列表 · {{applications.length}}</view>
       <view class="tab-pill {{currentTab === 'invitations' ? 'active' : ''}}" bindtap="switchTab" data-tab="invitations">邀请列表 · {{invitations.length}}</view>
+      <view class="tab-pill {{currentTab === 'members' ? 'active' : ''}}" bindtap="switchTab" data-tab="members">管理员名单 · {{admins.length}}</view>
+    </view>
+
+    <view class="section-card invite-card" wx:if="{{currentTab === 'members' && isSuperAdmin}}">
+      <view class="section-head">
+        <view>
+          <view class="section-title">直接授权管理员</view>
+          <view class="section-subtitle">填写对方微信号，立即授予管理员权限（仅最高管理员可操作）。</view>
+        </view>
+      </view>
+
+      <input class="field-input" placeholder="请输入目标微信号" value="{{adminForm.wechatId}}" bindinput="onAdminWechatIdInput" />
+      <textarea class="field-textarea" maxlength="120" placeholder="备注授权用途" value="{{adminForm.note}}" bindinput="onAdminNoteInput"></textarea>
+      <button class="primary-btn" bindtap="grantAdmin" disabled="{{granting}}">{{granting ? '授权中...' : '授权为管理员'}}</button>
     </view>
 
     <view class="section-card">
       <view class="section-head">
         <view>
-          <view class="section-title">{{currentTab === 'applications' ? '管理员申请' : '管理员邀请'}}</view>
-          <view class="section-subtitle">{{currentTab === 'applications' ? '优先处理待审核申请。' : '这里会显示所有邀请及其生效状态。'}}</view>
+          <view class="section-title">{{currentTab === 'applications' ? '管理员申请' : (currentTab === 'invitations' ? '管理员邀请' : '管理员名单')}}</view>
+          <view class="section-subtitle">{{currentTab === 'applications' ? '优先处理待审核申请。' : (currentTab === 'invitations' ? '这里会显示所有邀请及其生效状态。' : '当前拥有管理权限的账号。')}}</view>
         </view>
       </view>
 
@@ -63,6 +77,20 @@
           <view class="manage-card-desc">备注：{{item.note || '无'}}</view>
           <view wx:if="{{item.claimedUserName}}" class="manage-card-note">已生效账号：{{item.claimedUserName}}</view>
           <view wx:if="{{item.processedAt}}" class="manage-card-note">生效时间：{{item.processedAt}}</view>
+        </view>
+      </block>
+
+      <block wx:elif="{{currentTab === 'members' && admins.length > 0}}">
+        <view wx:for="{{admins}}" wx:key="id" class="manage-card">
+          <view class="manage-card-top">
+            <view class="manage-card-title">{{item.nickName}}</view>
+            <view class="status-chip {{item.adminLevel === 'super_admin' ? 'pending' : 'approved'}}">{{item.adminLevel === 'super_admin' ? '最高管理员' : (item.role === 'teacher' ? '管理员' : '学生管理员')}}</view>
+          </view>
+          <view class="manage-card-meta">微信号：{{item.wechatId || '未填写'}}</view>
+          <view wx:if="{{item.createdAt}}" class="manage-card-meta">注册时间：{{item.createdAt}}</view>
+          <view wx:if="{{isSuperAdmin && item.adminLevel !== 'super_admin'}}" class="action-row">
+            <button class="secondary-btn" bindtap="removeAdmin" data-id="{{item.id}}" disabled="{{removingId === item.id}}">{{removingId === item.id ? '移除中...' : '移除权限'}}</button>
+          </view>
         </view>
       </block>
 
