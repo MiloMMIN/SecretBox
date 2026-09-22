@@ -1453,7 +1453,54 @@ def uploaded_file(filename):
     # Add CORS headers for WeChat Mini Program image loading
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    # Filenames are uuid-based and immutable; safe to cache long-term
+    response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     return response
+
+
+IMAGE_MAX_DIMENSION = 1920
+IMAGE_JPEG_QUALITY = 82
+
+
+def compress_uploaded_image(file_path):
+    """Resize and recompress an uploaded image in place.
+
+    Returns the final file path (may change when an opaque PNG/WebP is
+    rewritten as JPEG). Falls back to the original file on any failure.
+    """
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return file_path
+
+    try:
+        if file_path.lower().endswith('.gif'):
+            return file_path  # keep animation
+
+        img = Image.open(file_path)
+        img = ImageOps.exif_transpose(img)
+        if img.mode == 'P':
+            img = img.convert('RGBA' if 'transparency' in img.info else 'RGB')
+
+        if max(img.size) > IMAGE_MAX_DIMENSION:
+            img.thumbnail((IMAGE_MAX_DIMENSION, IMAGE_MAX_DIMENSION), Image.LANCZOS)
+
+        has_alpha = img.mode in ('RGBA', 'LA')
+        if has_alpha:
+            has_alpha = img.getchannel('A').getextrema()[0] < 255
+
+        if has_alpha:
+            img.save(file_path, optimize=True)
+            return file_path
+
+        new_path = os.path.splitext(file_path)[0] + '.jpg'
+        img.convert('RGB').save(new_path, 'JPEG', quality=IMAGE_JPEG_QUALITY,
+                                optimize=True, progressive=True)
+        if new_path != file_path:
+            os.remove(file_path)
+        return new_path
+    except Exception:
+        return file_path
 
 
 @app.route('/api/uploads/image', methods=['POST'])
@@ -1481,6 +1528,8 @@ def upload_image():
     filename = f"{uuid.uuid4().hex}{ext}"
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     image_file.save(file_path)
+
+    filename = os.path.basename(compress_uploaded_image(file_path))
 
     return jsonify({'success': True, 'url': build_file_url(filename)})
 

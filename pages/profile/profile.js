@@ -533,6 +533,7 @@ Page({
     wx.chooseMedia({
       count: remainCount,
       mediaType: ['image'],
+      sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
       success: (res) => {
         const files = (res.tempFiles || []).map((item) => item.tempFilePath);
